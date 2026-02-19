@@ -99,6 +99,7 @@
             "pages": [
               "api/vscode-api-overview",
               "api/commands",
+              "api/window",
               "api/text-editor",
               "api/workspace",
               "api/languages",

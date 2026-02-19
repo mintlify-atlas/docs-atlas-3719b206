@@ -1,0 +1,681 @@
+---
+title: "Window API"
+description: "Interact with VS Code's window, UI components, and user interactions"
+---
+
+The Window API (`vscode.window`) provides access to VS Code's UI, including editors, terminals, status bar, notifications, and user input dialogs. It's one of the most frequently used namespaces in extension development.
+
+## Overview
+
+The window namespace enables extensions to:
+- Show messages and dialogs to users
+- Create and manage webview panels
+- Access active editors and terminals
+- Display progress indicators
+- Create custom UI components (quick picks, input boxes)
+- Manage output channels and status bar items
+
+## Active Editors
+
+### Access Active Editor
+
+```typescript
+import * as vscode from 'vscode';
+
+// Get the currently active text editor
+const editor = vscode.window.activeTextEditor;
+
+if (editor) {
+  const document = editor.document;
+  const selection = editor.selection;
+  
+  // Get selected text
+  const text = document.getText(selection);
+  console.log('Selected text:', text);
+}
+```
+
+### Editor Properties
+
+<AccordionGroup>
+  <Accordion title="activeTextEditor">
+    The currently focused text editor or `undefined` if none is active.
+
+    ```typescript
+    const editor = vscode.window.activeTextEditor;
+    if (editor) {
+      vscode.window.showInformationMessage(`Editing: ${editor.document.fileName}`);
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="visibleTextEditors">
+    Array of all visible text editors.
+
+    ```typescript
+    const editors = vscode.window.visibleTextEditors;
+    console.log(`${editors.length} editors visible`);
+    ```
+  </Accordion>
+
+  <Accordion title="activeNotebookEditor">
+    The currently focused notebook editor or `undefined`.
+
+    ```typescript
+    const notebook = vscode.window.activeNotebookEditor;
+    if (notebook) {
+      console.log(`Notebook: ${notebook.notebook.uri.fsPath}`);
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="activeTerminal">
+    The currently focused terminal or `undefined`.
+
+    ```typescript
+    const terminal = vscode.window.activeTerminal;
+    if (terminal) {
+      terminal.sendText('echo Hello');
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Editor Events
+
+Monitor editor changes with these events:
+
+```typescript
+// When active editor changes
+vscode.window.onDidChangeActiveTextEditor(editor => {
+  if (editor) {
+    console.log('Switched to:', editor.document.fileName);
+  }
+});
+
+// When visible editors change
+vscode.window.onDidChangeVisibleTextEditors(editors => {
+  console.log(`Now ${editors.length} visible editors`);
+});
+
+// When text selection changes
+vscode.window.onDidChangeTextEditorSelection(event => {
+  console.log('Selection changed in:', event.textEditor.document.fileName);
+});
+
+// When visible ranges change (scrolling)
+vscode.window.onDidChangeTextEditorVisibleRanges(event => {
+  console.log('Visible ranges changed');
+});
+```
+
+## Showing Documents
+
+### Open Text Documents
+
+```typescript
+// Open and show a document
+const uri = vscode.Uri.file('/path/to/file.ts');
+const document = await vscode.workspace.openTextDocument(uri);
+
+await vscode.window.showTextDocument(document, {
+  viewColumn: vscode.ViewColumn.One,
+  preserveFocus: false,
+  preview: true
+});
+```
+
+### Open at Specific Location
+
+```typescript
+await vscode.window.showTextDocument(document, {
+  selection: new vscode.Range(10, 0, 10, 0), // Line 10
+  viewColumn: vscode.ViewColumn.Beside
+});
+```
+
+## User Messages
+
+### Information Messages
+
+```typescript
+vscode.window.showInformationMessage('Operation completed successfully!');
+
+// With action buttons
+const result = await vscode.window.showInformationMessage(
+  'Do you want to continue?',
+  'Yes',
+  'No'
+);
+
+if (result === 'Yes') {
+  // User clicked Yes
+}
+```
+
+### Warning and Error Messages
+
+```typescript
+// Warning
+vscode.window.showWarningMessage('This action cannot be undone');
+
+// Error
+vscode.window.showErrorMessage('Failed to save file', 'Retry', 'Cancel')
+  .then(selection => {
+    if (selection === 'Retry') {
+      // Retry operation
+    }
+  });
+```
+
+### Modal Messages
+
+```typescript
+const result = await vscode.window.showInformationMessage(
+  'Important decision',
+  { modal: true },
+  'Confirm',
+  'Cancel'
+);
+```
+
+## Quick Pick
+
+### Simple Quick Pick
+
+```typescript
+const items = ['Option 1', 'Option 2', 'Option 3'];
+
+const selected = await vscode.window.showQuickPick(items, {
+  placeHolder: 'Select an option',
+  canPickMany: false
+});
+
+if (selected) {
+  vscode.window.showInformationMessage(`You picked: ${selected}`);
+}
+```
+
+### Quick Pick with Custom Items
+
+```typescript
+interface MyQuickPickItem extends vscode.QuickPickItem {
+  action: () => void;
+}
+
+const items: MyQuickPickItem[] = [
+  {
+    label: '$(file) New File',
+    description: 'Create a new file',
+    action: () => createNewFile()
+  },
+  {
+    label: '$(folder) New Folder',
+    description: 'Create a new folder',
+    action: () => createNewFolder()
+  }
+];
+
+const selected = await vscode.window.showQuickPick(items, {
+  placeHolder: 'What do you want to create?'
+});
+
+if (selected) {
+  selected.action();
+}
+```
+
+### Advanced Quick Pick
+
+```typescript
+const quickPick = vscode.window.createQuickPick();
+quickPick.items = [
+  { label: 'Item 1' },
+  { label: 'Item 2' },
+  { label: 'Item 3' }
+];
+quickPick.placeholder = 'Select items';
+quickPick.canSelectMany = true;
+
+quickPick.onDidChangeSelection(selection => {
+  console.log('Selected:', selection.map(s => s.label));
+});
+
+quickPick.onDidAccept(() => {
+  const selected = quickPick.selectedItems;
+  quickPick.hide();
+  // Process selection
+});
+
+quickPick.show();
+```
+
+## Input Box
+
+### Simple Input
+
+```typescript
+const name = await vscode.window.showInputBox({
+  prompt: 'Enter your name',
+  placeHolder: 'John Doe',
+  validateInput: (text) => {
+    return text.length === 0 ? 'Name cannot be empty' : null;
+  }
+});
+
+if (name) {
+  vscode.window.showInformationMessage(`Hello, ${name}!`);
+}
+```
+
+### Password Input
+
+```typescript
+const password = await vscode.window.showInputBox({
+  prompt: 'Enter password',
+  password: true,
+  validateInput: (text) => {
+    return text.length < 8 ? 'Password must be at least 8 characters' : null;
+  }
+});
+```
+
+### Custom Input Box
+
+```typescript
+const inputBox = vscode.window.createInputBox();
+inputBox.prompt = 'Enter a value';
+inputBox.placeholder = 'Type here...';
+
+inputBox.onDidChangeValue(value => {
+  // Validate as user types
+  inputBox.validationMessage = value.length < 3 
+    ? 'Must be at least 3 characters' 
+    : undefined;
+});
+
+inputBox.onDidAccept(() => {
+  const value = inputBox.value;
+  inputBox.hide();
+  // Process value
+});
+
+inputBox.show();
+```
+
+## Terminals
+
+### Create Terminal
+
+```typescript
+const terminal = vscode.window.createTerminal({
+  name: 'My Terminal',
+  cwd: '/path/to/directory'
+});
+
+terminal.show();
+terminal.sendText('npm install');
+```
+
+### Terminal Events
+
+```typescript
+// When terminal opens
+vscode.window.onDidOpenTerminal(terminal => {
+  console.log('Terminal opened:', terminal.name);
+});
+
+// When terminal closes
+vscode.window.onDidCloseTerminal(terminal => {
+  console.log('Terminal closed:', terminal.name);
+});
+
+// When active terminal changes
+vscode.window.onDidChangeActiveTerminal(terminal => {
+  if (terminal) {
+    console.log('Active terminal:', terminal.name);
+  }
+});
+```
+
+### Access All Terminals
+
+```typescript
+const terminals = vscode.window.terminals;
+terminals.forEach(terminal => {
+  console.log('Terminal:', terminal.name);
+});
+```
+
+## Output Channels
+
+### Create Output Channel
+
+```typescript
+const outputChannel = vscode.window.createOutputChannel('My Extension');
+
+outputChannel.appendLine('Extension activated');
+outputChannel.appendLine('Performing operation...');
+
+// Show the channel
+outputChannel.show();
+
+// Append without newline
+outputChannel.append('Progress: ');
+outputChannel.appendLine('100%');
+
+// Clear
+outputChannel.clear();
+
+// Dispose when done
+outputChannel.dispose();
+```
+
+### Log Output Channel
+
+```typescript
+const logChannel = vscode.window.createOutputChannel('My Extension', {
+  log: true
+});
+
+logChannel.info('Information message');
+logChannel.warn('Warning message');
+logChannel.error('Error message');
+logChannel.debug('Debug message');
+logChannel.trace('Trace message');
+```
+
+## Status Bar
+
+### Create Status Bar Item
+
+```typescript
+const statusBarItem = vscode.window.createStatusBarItem(
+  vscode.StatusBarAlignment.Left,
+  100
+);
+
+statusBarItem.text = '$(sync~spin) Loading...';
+statusBarItem.tooltip = 'Extension is loading';
+statusBarItem.command = 'extension.command';
+statusBarItem.show();
+
+// Update later
+setTimeout(() => {
+  statusBarItem.text = '$(check) Ready';
+  statusBarItem.tooltip = 'Extension is ready';
+}, 2000);
+
+// Hide and dispose
+statusBarItem.hide();
+statusBarItem.dispose();
+```
+
+### Status Bar with Progress
+
+```typescript
+const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+item.text = '$(loading~spin) Processing';
+item.show();
+
+// Simulate work
+await doWork();
+
+item.text = '$(check) Complete';
+setTimeout(() => item.dispose(), 2000);
+```
+
+## Progress Indicators
+
+### Window Progress
+
+```typescript
+vscode.window.withProgress({
+  location: vscode.ProgressLocation.Window,
+  title: 'Loading',
+  cancellable: false
+}, async (progress) => {
+  progress.report({ increment: 0 });
+  
+  for (let i = 0; i < 100; i += 10) {
+    await delay(100);
+    progress.report({ 
+      increment: 10, 
+      message: `${i}% complete` 
+    });
+  }
+});
+```
+
+### Notification Progress
+
+```typescript
+vscode.window.withProgress({
+  location: vscode.ProgressLocation.Notification,
+  title: 'Downloading files',
+  cancellable: true
+}, async (progress, token) => {
+  token.onCancellationRequested(() => {
+    console.log('User cancelled');
+  });
+
+  progress.report({ increment: 0, message: 'Starting...' });
+  
+  for (let i = 0; i < 100; i += 20) {
+    if (token.isCancellationRequested) {
+      break;
+    }
+    await delay(500);
+    progress.report({ 
+      increment: 20, 
+      message: `Downloaded ${i}%` 
+    });
+  }
+});
+```
+
+## File Dialogs
+
+### Open File Dialog
+
+```typescript
+const fileUri = await vscode.window.showOpenDialog({
+  canSelectFiles: true,
+  canSelectFolders: false,
+  canSelectMany: false,
+  filters: {
+    'Text files': ['txt', 'md'],
+    'All files': ['*']
+  },
+  title: 'Select a file'
+});
+
+if (fileUri && fileUri[0]) {
+  console.log('Selected file:', fileUri[0].fsPath);
+}
+```
+
+### Save File Dialog
+
+```typescript
+const uri = await vscode.window.showSaveDialog({
+  defaultUri: vscode.Uri.file('/path/to/file.txt'),
+  filters: {
+    'Text files': ['txt'],
+    'All files': ['*']
+  },
+  saveLabel: 'Save As'
+});
+
+if (uri) {
+  await vscode.workspace.fs.writeFile(uri, Buffer.from('content'));
+}
+```
+
+### Select Folder Dialog
+
+```typescript
+const folderUri = await vscode.window.showOpenDialog({
+  canSelectFiles: false,
+  canSelectFolders: true,
+  canSelectMany: false,
+  title: 'Select a folder'
+});
+```
+
+## Workspace Folder Picker
+
+```typescript
+const folder = await vscode.window.showWorkspaceFolderPick({
+  placeHolder: 'Select a workspace folder'
+});
+
+if (folder) {
+  console.log('Selected folder:', folder.uri.fsPath);
+}
+```
+
+## Window State
+
+### Monitor Window State
+
+```typescript
+// Current state
+const state = vscode.window.state;
+console.log('Window focused:', state.focused);
+
+// Listen for changes
+vscode.window.onDidChangeWindowState(state => {
+  if (state.focused) {
+    console.log('Window gained focus');
+  } else {
+    console.log('Window lost focus');
+  }
+});
+```
+
+## Tab Groups
+
+### Access Tab Groups
+
+```typescript
+const tabGroups = vscode.window.tabGroups;
+
+// All tab groups
+tabGroups.all.forEach(group => {
+  console.log(`Group ${group.viewColumn}:`, group.tabs.length, 'tabs');
+  
+  group.tabs.forEach(tab => {
+    if (tab.input instanceof vscode.TabInputText) {
+      console.log('  -', tab.label, ':', tab.input.uri.fsPath);
+    }
+  });
+});
+
+// Active tab group
+const activeGroup = tabGroups.activeTabGroup;
+console.log('Active tab:', activeGroup.activeTab?.label);
+```
+
+### Tab Group Events
+
+```typescript
+vscode.window.tabGroups.onDidChangeTabs(event => {
+  console.log('Opened tabs:', event.opened.map(t => t.label));
+  console.log('Closed tabs:', event.closed.map(t => t.label));
+  console.log('Changed tabs:', event.changed.map(t => t.label));
+});
+
+vscode.window.tabGroups.onDidChangeTabGroups(event => {
+  console.log('Groups opened:', event.opened.length);
+  console.log('Groups closed:', event.closed.length);
+  console.log('Groups changed:', event.changed.length);
+});
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Appropriate Message Types">
+    Choose the right message type for the situation. Reserve error messages for actual errors, not warnings or info.
+
+    ```typescript
+    // Good
+    vscode.window.showInformationMessage('File saved successfully');
+    vscode.window.showWarningMessage('File may contain syntax errors');
+    vscode.window.showErrorMessage('Failed to save file');
+
+    // Bad - using error for non-error situations
+    vscode.window.showErrorMessage('Operation completed');
+    ```
+  </Accordion>
+
+  <Accordion title="Provide Context in Messages">
+    Include relevant context in messages to help users understand what happened.
+
+    ```typescript
+    // Good
+    vscode.window.showErrorMessage(`Failed to load configuration from ${configPath}`);
+
+    // Bad - vague message
+    vscode.window.showErrorMessage('Something went wrong');
+    ```
+  </Accordion>
+
+  <Accordion title="Use Progress Indicators for Long Operations">
+    Show progress for any operation that takes more than a second.
+
+    ```typescript
+    await vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: 'Building project',
+      cancellable: true
+    }, async (progress, token) => {
+      // Long-running operation
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Dispose UI Components">
+    Always dispose of status bar items, output channels, and terminals when they're no longer needed.
+
+    ```typescript
+    const statusItem = vscode.window.createStatusBarItem();
+    context.subscriptions.push(statusItem); // Auto-dispose on deactivation
+
+    // Or manually dispose
+    statusItem.dispose();
+    ```
+  </Accordion>
+
+  <Accordion title="Validate User Input">
+    Always validate input from showInputBox to ensure data quality.
+
+    ```typescript
+    const email = await vscode.window.showInputBox({
+      prompt: 'Enter email address',
+      validateInput: (text) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(text) ? null : 'Invalid email address';
+      }
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related APIs
+
+<CardGroup cols={2}>
+  <Card title="Text Editor API" icon="code" href="/api/text-editor">
+    Work with text editors and documents
+  </Card>
+  <Card title="Workspace API" icon="folder" href="/api/workspace">
+    Access workspace files and folders
+  </Card>
+  <Card title="Commands API" icon="terminal" href="/api/commands">
+    Register and execute commands
+  </Card>
+  <Card title="Webview API" icon="window-maximize" href="/api/webview">
+    Create custom UI panels
+  </Card>
+</CardGroup>
