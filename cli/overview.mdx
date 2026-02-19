@@ -1,0 +1,209 @@
+---
+title: CLI Overview
+description: Overview of the Visual Studio Code Command Line Interface (CLI)
+---
+
+The Visual Studio Code CLI (`code`) is a powerful command-line tool that allows you to control and interact with VS Code from the terminal. It provides functionality for opening files and folders, managing extensions, creating remote tunnels, and much more.
+
+## What is the VS Code CLI?
+
+The VS Code CLI is a Rust-based command-line interface that serves as the entry point for launching and controlling Visual Studio Code. It can:
+
+- Launch VS Code with specific files, folders, or workspaces
+- Manage extensions (install, uninstall, list)
+- Create secure remote tunnels for accessing your machine from anywhere
+- Run a local web version of VS Code
+- Switch between different VS Code versions (stable, insiders, or specific versions)
+- Configure editor settings and troubleshoot issues
+
+<Note>
+The CLI is designed to work with both standalone installations and integrated VS Code installations.
+</Note>
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Remote Tunnels" icon="network-wired">
+    Create secure tunnels to access your development environment from vscode.dev or any browser, from anywhere in the world.
+  </Card>
+  
+  <Card title="Extension Management" icon="puzzle-piece">
+    Install, uninstall, list, and update extensions directly from the command line.
+  </Card>
+  
+  <Card title="Version Management" icon="code-branch">
+    Switch between stable, insiders, or specific versions of VS Code seamlessly.
+  </Card>
+  
+  <Card title="Local Web Server" icon="globe">
+    Run a local web version of VS Code for browser-based development.
+  </Card>
+</CardGroup>
+
+## Basic Usage
+
+The basic syntax for using the VS Code CLI is:
+
+```bash
+code [options] [paths...]
+```
+
+### Opening Files and Folders
+
+<CodeGroup>
+```bash Open a file
+code myfile.txt
+```
+
+```bash Open a folder
+code /path/to/project
+```
+
+```bash Open multiple files
+code file1.txt file2.txt file3.txt
+```
+
+```bash Read from stdin
+echo "Hello World" | code -
+```
+</CodeGroup>
+
+### Quick Examples
+
+<Steps>
+  <Step title="Open a file at a specific line">
+    ```bash
+    code --goto myfile.txt:42:5
+    ```
+    Opens `myfile.txt` at line 42, column 5.
+  </Step>
+  
+  <Step title="Compare two files">
+    ```bash
+    code --diff file1.txt file2.txt
+    ```
+    Opens a diff view comparing the two files.
+  </Step>
+  
+  <Step title="Install an extension">
+    ```bash
+    code ext install ms-python.python
+    ```
+    Installs the Python extension.
+  </Step>
+  
+  <Step title="Create a tunnel">
+    ```bash
+    code tunnel
+    ```
+    Creates a secure tunnel to access your machine remotely.
+  </Step>
+</Steps>
+
+## Command Categories
+
+The CLI is organized into several main command categories:
+
+### Core Commands
+
+- **No subcommand** - Launch VS Code with files/folders
+- `status` - Print process usage and diagnostics
+- `version` - Manage VS Code versions
+
+### Extension Commands
+
+- `ext list` - List installed extensions
+- `ext install` - Install extensions
+- `ext uninstall` - Uninstall extensions
+- `ext update` - Update extensions
+
+### Tunnel Commands
+
+- `tunnel` - Create and manage remote tunnels
+- `tunnel service` - Manage tunnel as a system service
+- `tunnel user` - Manage authentication for tunnels
+
+### Web Commands
+
+- `serve-web` - Run a local web version of VS Code
+
+<Note>
+For detailed information about each command, see the [Commands Reference](/cli/commands) page.
+</Note>
+
+## Global Options
+
+These options can be used with any command:
+
+<ParamField path="--verbose" type="boolean">
+  Print verbose output (implies --wait)
+</ParamField>
+
+<ParamField path="--log" type="string">
+  Log level to use. Values: `off`, `critical`, `error`, `warn`, `info`, `debug`, `trace`
+</ParamField>
+
+<ParamField path="--cli-data-dir" type="string">
+  Directory where CLI metadata should be stored
+</ParamField>
+
+<ParamField path="--disable-telemetry" type="boolean">
+  Disable telemetry for the current command
+</ParamField>
+
+<ParamField path="--telemetry-level" type="string">
+  Sets the initial telemetry level. Values: `off`, `crash`, `error`, `all`
+</ParamField>
+
+## Architecture
+
+The VS Code CLI is built with:
+
+- **Language**: Rust
+- **Binary name**: `code` (or `code-cli` internally)
+- **Command parsing**: clap library for robust CLI argument parsing
+- **Async runtime**: tokio for asynchronous operations
+- **Tunneling**: Microsoft Dev Tunnels for secure remote access
+
+## Output Formats
+
+Many commands support both text and JSON output formats:
+
+```bash Text output (default)
+code tunnel status
+```
+
+```bash JSON output
+code tunnel status --format json
+```
+
+## Environment Variables
+
+The CLI respects several environment variables:
+
+- `VSCODE_CLI_DATA_DIR` - Override the CLI data directory
+- `VSCODE_CLI_ACCESS_TOKEN` - Provide access token for authentication
+- `VSCODE_CLI_REFRESH_TOKEN` - Provide refresh token for authentication
+- `VSCODE_CLI_REQUIRE_TOKEN` - Require token for command shell connections
+- `VSCODE_CLI_NONINTERACTIVE` - Disable interactive prompts
+- `NO_COLOR` - Disable colored output
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/cli/installation">
+    Learn how to install the VS Code CLI on your system
+  </Card>
+  
+  <Card title="Commands Reference" icon="terminal" href="/cli/commands">
+    Explore all available CLI commands and options
+  </Card>
+  
+  <Card title="Remote Tunnels" icon="network-wired" href="/cli/tunnel">
+    Set up secure remote access to your development environment
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/cli/configuration">
+    Configure the CLI for your workflow
+  </Card>
+</CardGroup>

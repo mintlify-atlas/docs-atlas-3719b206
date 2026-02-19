@@ -1,0 +1,608 @@
+---
+title: Editor Service
+description: Comprehensive guide to VS Code's Editor Service for managing editors and editor groups
+---
+
+# Editor Service
+
+The Editor Service (`IEditorService`) is a workbench service that manages opening, closing, and interacting with editors across editor groups. It provides a high-level API for editor operations and tracks the active and visible editors.
+
+## Service Overview
+
+The Editor Service is defined in `src/vs/workbench/services/editor/common/editorService.ts:17` and serves as the primary interface for editor management.
+
+### Service Identifier
+
+```typescript
+export const IEditorService = createDecorator<IEditorService>('editorService');
+```
+
+## Dependency Injection
+
+```typescript
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { URI } from 'vs/base/common/uri';
+
+export class MyEditorFeature {
+  constructor(
+    @IEditorService private readonly editorService: IEditorService
+  ) {}
+
+  async openFile(uri: URI): Promise<void> {
+    await this.editorService.openEditor({
+      resource: uri
+    });
+  }
+}
+```
+
+## Opening Editors
+
+### openEditor() - Open Single Editor
+
+<ParamField path="editor" type="IUntypedEditorInput" required>
+  The editor input to open (resource, options, etc.)
+</ParamField>
+
+<ParamField path="group" type="PreferredGroup" optional>
+  Target group: `ACTIVE_GROUP`, `SIDE_GROUP`, `AUX_WINDOW_GROUP`, or group identifier
+</ParamField>
+
+```typescript
+import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+
+// Open file in active group
+await editorService.openEditor({
+  resource: URI.file('/path/to/file.ts')
+});
+
+// Open with options
+await editorService.openEditor({
+  resource: URI.file('/path/to/file.ts'),
+  options: {
+    selection: { startLineNumber: 10, startColumn: 1 },
+    pinned: true,
+    preserveFocus: false,
+    revealIfOpened: true
+  }
+});
+
+// Open in side group
+await editorService.openEditor(
+  { resource: URI.file('/path/to/file.ts') },
+  SIDE_GROUP
+);
+
+// Open in specific group
+const group = editorGroupService.getGroup(2);
+await editorService.openEditor(
+  { resource: URI.file('/path/to/file.ts') },
+  group
+);
+```
+
+<Accordion title="Group Constants">
+```typescript
+// Open in currently active group
+export const ACTIVE_GROUP = -1;
+
+// Open to the side of the active group
+export const SIDE_GROUP = -2;
+
+// Open in auxiliary window
+export const AUX_WINDOW_GROUP = -3;
+
+// Open in modal overlay
+export const MODAL_GROUP = -4;
+```
+</Accordion>
+
+### Opening Different Editor Types
+
+<Accordion title="Text Files">
+```typescript
+// Open text file
+await editorService.openEditor({
+  resource: URI.file('/path/to/file.ts'),
+  options: {
+    selection: { startLineNumber: 5, startColumn: 10 },
+    viewState: savedViewState
+  }
+});
+```
+</Accordion>
+
+<Accordion title="Diff Editors">
+```typescript
+import { IResourceDiffEditorInput } from 'vs/platform/editor/common/editor';
+
+// Open diff editor
+await editorService.openEditor({
+  original: { resource: URI.file('/path/to/original.ts') },
+  modified: { resource: URI.file('/path/to/modified.ts') },
+  label: 'My Diff',
+  options: {
+    preserveFocus: false
+  }
+});
+```
+</Accordion>
+
+<Accordion title="Untitled Files">
+```typescript
+// Open untitled file
+await editorService.openEditor({
+  resource: undefined,  // No resource = untitled
+  contents: 'Initial content',
+  languageId: 'typescript',
+  options: {
+    pinned: true
+  }
+});
+
+// Open untitled with specific resource
+await editorService.openEditor({
+  resource: URI.from({ scheme: 'untitled', path: '/Untitled-1' }),
+  languageId: 'markdown'
+});
+```
+</Accordion>
+
+### openEditors() - Open Multiple Editors
+
+```typescript
+import { IOpenEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
+
+// Open multiple editors
+const panes = await editorService.openEditors([
+  { resource: URI.file('/path/to/file1.ts') },
+  { resource: URI.file('/path/to/file2.ts') },
+  { resource: URI.file('/path/to/file3.ts') }
+], ACTIVE_GROUP);
+
+console.log(`Opened ${panes.length} editors`);
+
+// Open with validation
+await editorService.openEditors(
+  editors,
+  ACTIVE_GROUP,
+  { validateTrust: true }
+);
+```
+
+## Managing Editors
+
+### Active and Visible Editors
+
+```typescript
+// Get active editor
+const activeEditor = editorService.activeEditor;
+if (activeEditor) {
+  console.log('Active editor:', activeEditor.getName());
+  console.log('Resource:', activeEditor.resource?.fsPath);
+}
+
+// Get active editor pane (UI component)
+const activePane = editorService.activeEditorPane;
+if (activePane) {
+  console.log('Active pane ID:', activePane.getId());
+  const control = activePane.getControl();
+  // Access editor widget
+}
+
+// Get active text editor control
+const textControl = editorService.activeTextEditorControl;
+if (textControl) {
+  const model = textControl.getModel();
+  console.log('Current text:', model?.getValue());
+}
+
+// Get all visible editors
+const visibleEditors = editorService.visibleEditors;
+console.log(`${visibleEditors.length} editors visible`);
+
+// Get all visible editor panes
+const visiblePanes = editorService.visibleEditorPanes;
+for (const pane of visiblePanes) {
+  console.log('Visible:', pane.input?.getName());
+}
+```
+
+### Finding Editors
+
+```typescript
+import { IResourceEditorInputIdentifier } from 'vs/platform/editor/common/editor';
+
+// Find editors by resource
+const editors = editorService.findEditors(URI.file('/path/to/file.ts'));
+for (const { editor, groupId } of editors) {
+  console.log(`Found in group ${groupId}:`, editor.getName());
+}
+
+// Find specific editor
+const specificEditors = editorService.findEditors({
+  resource: URI.file('/path/to/file.ts'),
+  typeId: 'workbench.editors.files.textFileEditor'
+});
+
+// Check if editor is opened
+const isOpened = editorService.isOpened({
+  resource: URI.file('/path/to/file.ts')
+});
+
+// Check if editor is visible
+if (activeEditor && editorService.isVisible(activeEditor)) {
+  console.log('Active editor is visible');
+}
+```
+
+### Closing Editors
+
+```typescript
+import { ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
+
+// Close specific editor
+const editorToClose = editorService.findEditors(uri)[0];
+if (editorToClose) {
+  await editorService.closeEditor(editorToClose);
+}
+
+// Close with options
+await editorService.closeEditor(editorToClose, {
+  preserveFocus: true,  // Don't change focus
+  skipConfirm: false    // Still ask to save if dirty
+});
+
+// Close multiple editors
+const editorsToClose = editorService.findEditors(folderUri);
+await editorService.closeEditors(editorsToClose);
+```
+
+### Replacing Editors
+
+```typescript
+import { IUntypedEditorReplacement } from 'vs/workbench/services/editor/common/editorService';
+
+// Replace editor with another
+const currentEditor = editorService.activeEditor;
+if (currentEditor) {
+  await editorService.replaceEditors(
+    [{
+      editor: currentEditor,
+      replacement: { resource: newUri },
+      forceReplaceDirty: false  // Ask to save if dirty
+    }],
+    currentEditor.groupId
+  );
+}
+```
+
+## Saving and Reverting
+
+### Saving Editors
+
+```typescript
+import { ISaveEditorsOptions, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
+
+// Save single editor
+const editorId = editorService.findEditors(uri)[0];
+const result = await editorService.save(editorId);
+
+if (result.success) {
+  console.log('Saved successfully');
+}
+
+// Save multiple editors
+const editorsToSave = editorService.findEditors(folderUri);
+const multiResult = await editorService.save(editorsToSave, {
+  reason: 'AUTO',  // Save reason
+  saveAs: false    // Don't prompt for location
+});
+
+// Save all dirty editors
+const allResult = await editorService.saveAll({
+  includeUntitled: true,
+  excludeSticky: false,
+  reason: 'EXPLICIT'
+});
+
+console.log(`Saved ${allResult.editors.length} editors`);
+```
+
+### Reverting Editors
+
+```typescript
+import { IRevertOptions } from 'vs/workbench/common/editor';
+
+// Revert single editor
+const editorId = editorService.findEditors(uri)[0];
+const reverted = await editorService.revert(editorId, {
+  force: false,  // Ask for confirmation if dirty
+  soft: false    // Hard revert (discard all changes)
+});
+
+// Revert all dirty editors
+const allReverted = await editorService.revertAll({
+  includeUntitled: false,  // Don't close untitled
+  excludeSticky: true      // Don't revert pinned editors
+});
+```
+
+## Editor Enumeration
+
+```typescript
+import { EditorsOrder } from 'vs/workbench/common/editor';
+
+// Get all open editors
+const allEditors = editorService.editors;
+console.log(`${allEditors.length} editors open`);
+
+// Get total count
+const count = editorService.count;
+
+// Get editors in specific order
+const editorsByMRU = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
+const editorsBySequence = editorService.getEditors(EditorsOrder.SEQUENTIAL);
+
+// Exclude sticky editors
+const nonStickyEditors = editorService.getEditors(
+  EditorsOrder.SEQUENTIAL,
+  { excludeSticky: true }
+);
+
+for (const { editor, groupId } of nonStickyEditors) {
+  console.log(`Group ${groupId}: ${editor.getName()}`);
+}
+```
+
+## Events
+
+### onDidActiveEditorChange
+
+```typescript
+// Listen to active editor changes
+editorService.onDidActiveEditorChange(() => {
+  const active = editorService.activeEditor;
+  if (active) {
+    console.log('Active editor changed to:', active.getName());
+    console.log('Resource:', active.resource?.fsPath);
+  } else {
+    console.log('No active editor');
+  }
+});
+```
+
+### onDidVisibleEditorsChange
+
+```typescript
+// Listen to visible editors changes
+editorService.onDidVisibleEditorsChange(() => {
+  const visible = editorService.visibleEditors;
+  console.log(`${visible.length} editors now visible`);
+  
+  for (const editor of visible) {
+    console.log('Visible:', editor.getName());
+  }
+});
+```
+
+### onDidEditorsChange
+
+```typescript
+import { IEditorsChangeEvent } from 'vs/workbench/services/editor/common/editorService';
+
+// Listen to any editor change in any group
+editorService.onDidEditorsChange((event: IEditorsChangeEvent) => {
+  console.log(`Change in group ${event.groupId}`);
+  console.log('Event kind:', event.event.kind);
+  
+  if (event.event.editor) {
+    console.log('Affected editor:', event.event.editor.getName());
+  }
+});
+```
+
+### onWillOpenEditor
+
+```typescript
+import { IEditorWillOpenEvent } from 'vs/workbench/common/editor';
+
+// Intercept editor opening
+editorService.onWillOpenEditor((event: IEditorWillOpenEvent) => {
+  console.log('About to open:', event.editor.resource?.fsPath);
+  
+  // Can prevent default and handle custom open logic
+  if (shouldHandleCustom(event.editor)) {
+    event.prevent(() => {
+      return openCustomEditor(event.editor);
+    });
+  }
+});
+```
+
+### onDidCloseEditor
+
+```typescript
+import { IEditorCloseEvent } from 'vs/workbench/common/editor';
+
+// Listen to editor closing
+editorService.onDidCloseEditor((event: IEditorCloseEvent) => {
+  console.log('Editor closed:', event.editor.getName());
+  console.log('Group:', event.groupId);
+  console.log('Index:', event.index);
+  console.log('Sticky:', event.sticky);
+});
+```
+
+## Common Use Cases
+
+### Opening Files with Selection
+
+```typescript
+export class NavigationService {
+  constructor(
+    @IEditorService private editorService: IEditorService
+  ) {}
+
+  async navigateToSymbol(uri: URI, line: number, column: number): Promise<void> {
+    await this.editorService.openEditor({
+      resource: uri,
+      options: {
+        selection: {
+          startLineNumber: line,
+          startColumn: column,
+          endLineNumber: line,
+          endColumn: column
+        },
+        revealIfOpened: true,  // Scroll to position if already open
+        preserveFocus: false,  // Give focus to editor
+        pinned: false          // Don't pin the editor
+      }
+    });
+  }
+}
+```
+
+### Managing Editor Layout
+
+```typescript
+export class LayoutManager {
+  constructor(
+    @IEditorService private editorService: IEditorService
+  ) {}
+
+  async openSideBySide(leftUri: URI, rightUri: URI): Promise<void> {
+    // Open first file in active group
+    await this.editorService.openEditor(
+      { resource: leftUri },
+      ACTIVE_GROUP
+    );
+
+    // Open second file to the side
+    await this.editorService.openEditor(
+      { resource: rightUri },
+      SIDE_GROUP
+    );
+  }
+
+  async openMultipleFiles(uris: URI[]): Promise<void> {
+    // Open all files at once
+    const inputs = uris.map(uri => ({ resource: uri }));
+    await this.editorService.openEditors(inputs, ACTIVE_GROUP);
+  }
+}
+```
+
+### Tracking Active Editor
+
+```typescript
+export class EditorTracker {
+  private currentUri: URI | undefined;
+
+  constructor(
+    @IEditorService private editorService: IEditorService
+  ) {
+    this.trackActiveEditor();
+  }
+
+  private trackActiveEditor(): void {
+    // Track current editor
+    this.editorService.onDidActiveEditorChange(() => {
+      const active = this.editorService.activeEditor;
+      const newUri = active?.resource;
+
+      if (this.currentUri !== newUri) {
+        this.onEditorChanged(this.currentUri, newUri);
+        this.currentUri = newUri;
+      }
+    });
+  }
+
+  private onEditorChanged(oldUri: URI | undefined, newUri: URI | undefined): void {
+    if (oldUri) {
+      console.log('Left editor:', oldUri.fsPath);
+    }
+    if (newUri) {
+      console.log('Entered editor:', newUri.fsPath);
+    }
+  }
+}
+```
+
+### Smart Save Operations
+
+```typescript
+export class SmartSaver {
+  constructor(
+    @IEditorService private editorService: IEditorService
+  ) {}
+
+  async saveWorkspaceFiles(workspaceUri: URI): Promise<void> {
+    // Find all editors in workspace
+    const editors = this.editorService.getEditors(EditorsOrder.SEQUENTIAL)
+      .filter(({ editor }) => {
+        const resource = editor.resource;
+        return resource && resource.toString().startsWith(workspaceUri.toString());
+      });
+
+    // Save them all
+    const result = await this.editorService.save(editors, {
+      reason: 'EXPLICIT'
+    });
+
+    if (result.success) {
+      console.log(`Saved ${result.editors.length} files`);
+    } else {
+      console.error('Save operation failed');
+    }
+  }
+
+  async closeUnsavedEditors(): Promise<void> {
+    // Get all dirty editors
+    const dirtyEditors = this.editorService.getEditors(EditorsOrder.SEQUENTIAL)
+      .filter(({ editor }) => editor.isDirty());
+
+    // Try to save them
+    const result = await this.editorService.save(dirtyEditors);
+
+    // Close successfully saved editors
+    if (result.success) {
+      await this.editorService.closeEditors(dirtyEditors);
+    }
+  }
+}
+```
+
+## Best Practices
+
+<Note>
+  **Use Untyped Inputs**: Prefer untyped editor inputs (`{ resource: uri }`) over creating `EditorInput` instances. This allows the editor resolver to select the appropriate editor.
+</Note>
+
+<Note>
+  **Preserve Focus**: When opening editors in the background, use `preserveFocus: true` to keep the user's current focus.
+</Note>
+
+<Note>
+  **Handle Missing Files**: Always handle cases where files might not exist or fail to open. Check `isOpened()` before performing operations.
+</Note>
+
+<Note>
+  **Group Management**: Use `SIDE_GROUP` to open editors to the side, but consider using `IEditorGroupsService` for more complex layout requirements.
+</Note>
+
+<Note>
+  **Event Disposal**: Always dispose of event listeners when your component is disposed to prevent memory leaks.
+</Note>
+
+## Related Services
+
+- **IEditorGroupsService** - Lower-level service for managing editor groups
+- **IEditorResolverService** - Maps resources to appropriate editor types
+- **ITextFileService** - Higher-level service for text file operations
+
+## See Also
+
+- [Editor Groups Service](/api/services/editor-groups-service)
+- [Editor Input](/api/workbench/editor-input)
+- [Editor Pane](/api/workbench/editor-pane)

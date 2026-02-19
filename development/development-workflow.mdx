@@ -1,0 +1,594 @@
+---
+title: Development Workflow
+description: Tools, scripts, and best practices for VS Code development
+---
+
+## Development Environment Setup
+
+VS Code provides a comprehensive development environment with pre-configured tasks, launch configurations, and tooling.
+
+### Editor Configuration
+
+The repository includes VS Code workspace settings optimized for development:
+
+<CardGroup cols={2}>
+  <Card title="TypeScript" icon="code">
+    - Tabs for indentation (not spaces)
+    - Real-time compilation feedback
+    - Strict type checking enabled
+  </Card>
+  <Card title="Tasks" icon="list-check">
+    - Pre-configured build tasks
+    - Watch mode tasks
+    - Test runner tasks
+  </Card>
+  <Card title="Extensions" icon="puzzle-piece">
+    - ESLint integration
+    - TypeScript language features
+    - Debug adapters
+  </Card>
+  <Card title="Launch Configs" icon="rocket">
+    - Multiple debug configurations
+    - Compound launch setups
+    - Test runner integrations
+  </Card>
+</CardGroup>
+
+## Architecture Overview
+
+Understanding the codebase structure is essential for effective development:
+
+### Core Source Structure (`src/`)
+
+<Tabs>
+  <Tab title="Base Layer">
+    **`src/vs/base/`** - Foundation utilities and cross-platform abstractions
+
+    - Common data structures (arrays, maps, events)
+    - Platform-agnostic utilities
+    - Basic UI components
+    - No dependencies on other VS Code layers
+  </Tab>
+  <Tab title="Platform Layer">
+    **`src/vs/platform/`** - Platform services and dependency injection
+
+    - Service infrastructure
+    - Dependency injection framework
+    - Core platform services (files, storage, logging)
+    - Cross-cutting concerns
+  </Tab>
+  <Tab title="Editor Layer">
+    **`src/vs/editor/`** - Text editor implementation
+
+    - Monaco Editor core
+    - Language services
+    - Syntax highlighting
+    - IntelliSense features
+  </Tab>
+  <Tab title="Workbench Layer">
+    **`src/vs/workbench/`** - Main application workbench
+
+    - `browser/` - Core UI components
+    - `services/` - Workbench services
+    - `contrib/` - Feature contributions
+    - `api/` - Extension API implementation
+  </Tab>
+  <Tab title="Code Layer">
+    **`src/vs/code/`** - Electron main process
+
+    - Application lifecycle
+    - Window management
+    - Native integration
+  </Tab>
+</Tabs>
+
+### Built-in Extensions
+
+The `extensions/` directory contains first-party extensions:
+
+- **Language features**: `typescript-language-features/`, `html-language-features/`, `css-language-features/`
+- **Core features**: `git/`, `debug-auto-launch/`, `emmet/`, `markdown-language-features/`
+- **Themes**: `theme-*` folders
+- **Development tools**: `extension-editing/`, `vscode-api-tests/`
+
+## Coding Guidelines
+
+<Warning>
+  Following these guidelines is mandatory for all code contributions. The CI/CD pipeline enforces many of these rules.
+</Warning>
+
+### Naming Conventions
+
+<CodeGroup>
+```typescript Types and Enums
+// Use PascalCase for types
+type ViewMode = 'split' | 'single';
+
+// Use PascalCase for interfaces
+interface IEditorService {
+    activeEditor: IEditor;
+}
+
+// Use PascalCase for enum values
+enum Theme {
+    Light,
+    Dark,
+    HighContrast
+}
+```
+
+```typescript Functions and Variables
+// Use camelCase for functions
+function openEditor(uri: URI): void {
+    // ...
+}
+
+// Use camelCase for methods
+class EditorService {
+    openEditor(uri: URI): void {
+        // ...
+    }
+}
+
+// Use camelCase for properties and local variables
+const activeEditor = this.getActiveEditor();
+```
+</CodeGroup>
+
+### Indentation and Style
+
+<Note>
+  **VS Code uses tabs, not spaces** for indentation. This is enforced by ESLint.
+</Note>
+
+<CodeGroup>
+```typescript Arrow Functions
+// Correct: No parens for single parameter
+array.map(x => x + 1)
+
+// Correct: Parens for multiple parameters
+array.map((x, y) => x + y)
+
+// Correct: Parens for type parameters
+array.map(<T>(x: T) => x)
+
+// Wrong: Unnecessary parens
+array.map((x) => x + 1)
+```
+
+```typescript Control Flow
+// Always use curly braces
+if (condition) {
+    doSomething();
+}
+
+// Curly braces on same line
+for (let i = 0; i < n; i++) {
+    process(i);
+}
+
+// Correct spacing
+if (x < 10) {
+    foo();
+}
+```
+
+```typescript Functions
+// Prefer function declarations in top-level scopes
+export function createEditor(): IEditor {
+    return new Editor();
+}
+
+// Arrow functions for callbacks
+window.addEventListener('load', () => {
+    initialize();
+});
+```
+</CodeGroup>
+
+### String Handling
+
+<CodeGroup>
+```typescript Localization
+import * as nls from 'vs/nls';
+
+// Use double quotes for user-facing strings
+const message = nls.localize('key', "This message will be translated");
+
+// Use placeholders instead of concatenation
+const error = nls.localize('error', "Failed to open {0}", fileName);
+```
+
+```typescript Internal Strings
+// Use single quotes for internal strings
+const eventName = 'onDidChangeConfiguration';
+const propertyKey = 'editor.fontSize';
+```
+</CodeGroup>
+
+### UI Labels
+
+Use title-style capitalization for UI elements:
+
+```typescript
+// Command labels (title case)
+const command = {
+    id: 'workbench.action.files.openFile',
+    title: 'Open File',  // ✓ Correct
+    // title: 'Open file',  // ✗ Wrong
+};
+
+// Don't capitalize short prepositions
+'Show in Explorer'  // ✓ Correct
+'Show In Explorer'  // ✗ Wrong
+```
+
+### Code Quality Requirements
+
+<Steps>
+  <Step title="TypeScript Strictness">
+    - No `any` or `unknown` without justification
+    - Proper type annotations required
+    - Define interfaces for complex types
+
+    ```typescript
+    // Good
+    function processData(data: EditorData): Result {
+        return transform(data);
+    }
+
+    // Avoid
+    function processData(data: any): any {
+        return transform(data);
+    }
+    ```
+  </Step>
+
+  <Step title="Async/Await">
+    Prefer `async`/`await` over Promises:
+
+    ```typescript
+    // Preferred
+    async function loadFile(uri: URI): Promise<string> {
+        const content = await fileService.readFile(uri);
+        return content.value.toString();
+    }
+
+    // Avoid
+    function loadFile(uri: URI): Promise<string> {
+        return fileService.readFile(uri).then(content => {
+            return content.value.toString();
+        });
+    }
+    ```
+  </Step>
+
+  <Step title="Disposables">
+    **Critical**: Always handle disposables properly to avoid memory leaks:
+
+    ```typescript
+    class MyComponent {
+        private readonly disposables = new DisposableStore();
+
+        constructor() {
+            // Register disposables immediately
+            this.disposables.add(
+                this.onDidChange(() => this.update())
+            );
+        }
+
+        dispose(): void {
+            this.disposables.dispose();
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Code Reuse">
+    Always search for existing utilities before implementing new ones:
+
+    ```typescript
+    // Check if similar functionality exists in:
+    // - src/vs/base/common/
+    // - src/vs/base/browser/
+    // - src/vs/platform/*/common/
+    ```
+  </Step>
+</Steps>
+
+## Development Tasks
+
+### Compilation and Building
+
+<CodeGroup>
+```bash Watch Mode (Recommended)
+# Start all watch tasks in parallel
+npm run watch
+
+# Or start specific watch tasks
+npm run watch-client
+npm run watch-extensions
+```
+
+```bash Full Build
+# Compile everything
+npm run compile
+
+# Build specific components
+npm run compile-web
+npm run compile-cli
+```
+
+```bash Background Watch
+# Use deemon for daemon-style watching
+npm run watchd          # Start
+npm run kill-watchd     # Stop
+npm run restart-watchd  # Restart
+```
+</CodeGroup>
+
+### Code Quality Checks
+
+Run these checks before committing:
+
+<Steps>
+  <Step title="TypeScript Compilation">
+    Check for compilation errors:
+    ```bash
+    npm run compile
+    ```
+
+    Monitor the watch task output for real-time errors:
+    ```bash
+    npm run watch
+    ```
+  </Step>
+
+  <Step title="Layer Validation">
+    Ensure architectural layers are respected:
+    ```bash
+    npm run valid-layers-check
+    ```
+  </Step>
+
+  <Step title="Linting">
+    Run ESLint and StyleLint:
+    ```bash
+    npm run eslint
+    npm run stylelint
+    ```
+  </Step>
+
+  <Step title="Hygiene Check">
+    Run all code hygiene checks:
+    ```bash
+    npm run hygiene
+    ```
+
+    Or use the precommit hook:
+    ```bash
+    npm run precommit
+    ```
+  </Step>
+</Steps>
+
+### Specialized Compilation Checks
+
+<CodeGroup>
+```bash Monaco Editor
+npm run monaco-compile-check
+```
+
+```bash TypeScript Security
+npm run tsec-compile-check
+```
+
+```bash VS Code API Definitions
+npm run vscode-dts-compile-check
+```
+
+```bash Define Class Fields
+npm run define-class-fields-check
+```
+</CodeGroup>
+
+## Working with Extensions
+
+### Building Extensions
+
+```bash
+# Compile all built-in extensions
+npm run compile-extensions-build
+
+# Watch extensions for changes
+npm run watch-extensions
+```
+
+### Downloading Built-in Extensions
+
+Some extensions are not included in the repository:
+
+```bash
+# Download all built-in extensions
+npm run download-builtin-extensions
+
+# Download with code generation
+npm run download-builtin-extensions-cg
+```
+
+## Updating Dependencies
+
+### Grammar Updates
+
+Update language grammars:
+
+```bash
+npm run update-grammars
+```
+
+### Localization
+
+Update localization extension:
+
+```bash
+npm run update-localization-extension
+```
+
+### TypeScript Version
+
+Update to latest TypeScript:
+
+```bash
+npm run update-build-ts-version
+```
+
+## Performance Testing
+
+Run performance benchmarks:
+
+```bash
+# Performance tests
+npm run perf
+
+# Using scripts
+node scripts/code-perf.js
+```
+
+## Common Development Workflows
+
+### Feature Development
+
+<Steps>
+  <Step title="Start Watch Mode">
+    ```bash
+    npm run watch
+    ```
+  </Step>
+
+  <Step title="Run VS Code">
+    Launch VS Code with debugger attached (F5 in VS Code) or:
+    ```bash
+    ./scripts/code.sh
+    ```
+  </Step>
+
+  <Step title="Make Changes">
+    Edit TypeScript files - they'll automatically recompile
+  </Step>
+
+  <Step title="Reload Window">
+    In the running VS Code instance:
+    - Press `Cmd/Ctrl + R` to reload
+    - Or use Command Palette: "Developer: Reload Window"
+  </Step>
+
+  <Step title="Run Tests">
+    Test your changes:
+    ```bash
+    ./scripts/test.sh --grep "your test pattern"
+    ```
+  </Step>
+</Steps>
+
+### Bug Fixing Workflow
+
+<Steps>
+  <Step title="Find Related Code">
+    1. Use semantic search for general concepts (Glob tool)
+    2. Use grep for exact strings/error messages
+    3. Follow imports to understand dependencies
+    4. Check test files for usage patterns
+  </Step>
+
+  <Step title="Debug the Issue">
+    Launch VS Code with debugger (see [Debugging](/development/debugging))
+  </Step>
+
+  <Step title="Implement Fix">
+    Make changes following coding guidelines
+  </Step>
+
+  <Step title="Validate">
+    ```bash
+    # Check compilation
+    npm run compile
+
+    # Run tests
+    ./scripts/test.sh --grep "related test"
+
+    # Check layers
+    npm run valid-layers-check
+    ```
+  </Step>
+</Steps>
+
+## CI/CD Integration
+
+The repository includes CI/CD scripts:
+
+<CodeGroup>
+```bash Core CI
+npm run core-ci        # Full core CI
+npm run core-ci-pr     # PR checks
+```
+
+```bash Extensions CI
+npm run extensions-ci     # Full extension CI
+npm run extensions-ci-pr  # PR checks
+```
+</CodeGroup>
+
+## Tips and Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Watch Mode">
+    Always develop with watch mode running (`npm run watch`) for instant feedback on TypeScript errors.
+  </Accordion>
+
+  <Accordion title="Leverage Launch Configurations">
+    Use the pre-configured launch configurations in `.vscode/launch.json` for debugging different processes:
+    - Main Process
+    - Extension Host
+    - Shared Process
+    - Search Process
+  </Accordion>
+
+  <Accordion title="Check Layer Dependencies">
+    Before importing from another module, verify it's allowed by the layer architecture:
+    ```bash
+    npm run valid-layers-check
+    ```
+  </Accordion>
+
+  <Accordion title="Test as You Go">
+    Run relevant tests frequently during development:
+    ```bash
+    ./scripts/test.sh --grep "pattern matching your feature"
+    ```
+  </Accordion>
+
+  <Accordion title="Clean Builds When Needed">
+    If you encounter strange issues, try a clean build:
+    ```bash
+    rm -rf out node_modules/.cache
+    npm run compile
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Debugging" icon="bug" href="/development/debugging">
+    Learn how to debug VS Code itself
+  </Card>
+  <Card title="Running Tests" icon="flask" href="/development/running-tests">
+    Understand the testing infrastructure
+  </Card>
+  <Card title="Building from Source" icon="hammer" href="/development/building-from-source">
+    Review build instructions
+  </Card>
+  <Card title="How to Contribute" icon="code-pull-request" href="https://github.com/microsoft/vscode/wiki/How-to-Contribute">
+    Read the full contribution guide
+  </Card>
+</CardGroup>

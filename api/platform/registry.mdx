@@ -1,0 +1,236 @@
+---
+title: Registry Pattern
+description: Learn how VS Code uses the Registry pattern for extensible component registration
+---
+
+The Registry is a central pattern in VS Code's architecture that enables loosely-coupled, extensible component registration. It provides a type-safe way to register and retrieve extensions, configurations, actions, and other platform features.
+
+## Overview
+
+The Registry pattern allows different parts of VS Code to contribute functionality to well-defined extension points without tight coupling. Each extension point is identified by a unique string identifier.
+
+## Core Registry Interface
+
+The base registry provides three simple operations:
+
+```typescript
+export interface IRegistry {
+  /**
+   * Adds the extension functions and properties defined by data to the
+   * platform. The provided id must be unique.
+   */
+  add(id: string, data: any): void;
+
+  /**
+   * Returns true iff there is an extension with the provided id.
+   */
+  knows(id: string): boolean;
+
+  /**
+   * Returns the extension functions and properties defined by the specified key or null.
+   */
+  as<T>(id: string): T;
+}
+```
+
+The global Registry instance is available at:
+
+```typescript
+import { Registry } from 'vs/platform/registry/common/platform';
+```
+
+## Common Registry Extension Points
+
+VS Code defines many typed registries for different purposes. Here are the most commonly used ones:
+
+<Accordion title="Configuration Registry">
+
+The Configuration Registry manages all settings that appear in VS Code's settings UI.
+
+```typescript
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+
+configurationRegistry.registerConfiguration({
+  id: 'myExtension',
+  order: 20,
+  title: 'My Extension',
+  type: 'object',
+  properties: {
+    'myExtension.enable': {
+      type: 'boolean',
+      default: true,
+      description: 'Enable my extension feature'
+    },
+    'myExtension.maxItems': {
+      type: 'number',
+      default: 100,
+      minimum: 1,
+      maximum: 1000,
+      description: 'Maximum number of items to display'
+    }
+  }
+});
+```
+
+The registry provides methods for:
+- `registerConfiguration()` - Register settings
+- `getConfigurations()` - Get all registered configurations
+- `getConfigurationProperties()` - Get all setting properties
+- `onDidSchemaChange` - Event when configuration schema changes
+
+</Accordion>
+
+<Accordion title="Keybindings Registry">
+
+The Keybindings Registry stores all keybinding rules including default and extension-provided bindings.
+
+```typescript
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+
+// Register a keybinding
+KeybindingsRegistry.registerKeybindingRule({
+  id: 'myCommand',
+  weight: KeybindingWeight.WorkbenchContrib,
+  when: ContextKeyExpr.equals('editorTextFocus', true),
+  primary: KeyMod.CtrlCmd | KeyCode.KeyK,
+  secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyK]
+});
+```
+
+The registry manages:
+- Primary and secondary keybindings
+- Platform-specific bindings (Windows, Mac, Linux)
+- Context-aware activation via `when` clauses
+- Weighted priority resolution
+
+</Accordion>
+
+<Accordion title="Menu Registry">
+
+The Menu Registry manages menu items across all VS Code menus (context menus, editor toolbar, etc.).
+
+```typescript
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+
+// Register a menu item
+MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+  command: {
+    id: 'myExtension.doSomething',
+    title: 'Do Something',
+    category: 'My Extension'
+  },
+  when: ContextKeyExpr.equals('resourceExtname', '.js'),
+  group: 'navigation',
+  order: 1
+});
+```
+
+Key features:
+- Over 100 predefined menu locations (MenuId)
+- Context-aware visibility via `when` clauses
+- Grouping and ordering support
+- Submenu support
+
+</Accordion>
+
+## Creating Custom Registries
+
+You can create your own registries for custom extension points:
+
+```typescript
+import { Registry } from 'vs/platform/registry/common/platform';
+
+// Define your extension interface
+export interface IMyCustomRegistry {
+  registerProvider(provider: IMyProvider): void;
+  getProviders(): IMyProvider[];
+}
+
+// Define the extension point ID
+export const Extensions = {
+  MyCustomRegistry: 'myExtension.customRegistry'
+};
+
+// Implement the registry
+class MyCustomRegistry implements IMyCustomRegistry {
+  private providers: IMyProvider[] = [];
+
+  registerProvider(provider: IMyProvider): void {
+    this.providers.push(provider);
+  }
+
+  getProviders(): IMyProvider[] {
+    return this.providers.slice();
+  }
+}
+
+// Register it to the global Registry
+Registry.add(Extensions.MyCustomRegistry, new MyCustomRegistry());
+```
+
+Then consume it elsewhere:
+
+```typescript
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IMyCustomRegistry } from './myCustomRegistry';
+
+const myRegistry = Registry.as<IMyCustomRegistry>(Extensions.MyCustomRegistry);
+myRegistry.registerProvider(new MyProvider());
+```
+
+## Best Practices
+
+<Note>
+**Extension Point Naming**: Use descriptive, namespaced extension point IDs like `'platform.configuration'` or `'myExtension.providers'` to avoid collisions.
+</Note>
+
+<Info>
+**Type Safety**: Always define TypeScript interfaces for your registry implementations and use `Registry.as<T>()` with the correct type parameter.
+</Info>
+
+<Note>
+**Initialization Timing**: Registry contributions should happen during module initialization, not lazily. This ensures all contributions are available when needed.
+</Note>
+
+## Real-World Example
+
+Here's how the Color Registry works in VS Code:
+
+```typescript
+// src/vs/platform/theme/common/colorRegistry.ts
+export interface IColorRegistry {
+  registerColor(id: string, defaults: ColorDefaults, description: string): string;
+  getColors(): ColorContribution[];
+  resolveDefaultColor(id: string, theme: ITheme): Color | undefined;
+}
+
+export const Extensions = {
+  ColorContribution: 'base.contributions.colors'
+};
+
+// Register colors
+import * as platform from 'vs/platform/registry/common/platform';
+const colorRegistry = platform.Registry.as<IColorRegistry>(Extensions.ColorContribution);
+
+export const editorBackground = colorRegistry.registerColor(
+  'editor.background',
+  { 
+    light: '#fffffe', 
+    dark: '#1e1e1e', 
+    hcDark: '#000000', 
+    hcLight: '#ffffff' 
+  },
+  'Editor background color'
+);
+```
+
+## See Also
+
+- [Configuration Registry](/api/platform/configuration)
+- [Actions and Commands](/api/platform/actions)
+- [Keybindings](/api/platform/keybindings)
+- [Instantiation Service](/api/platform/instantiation)

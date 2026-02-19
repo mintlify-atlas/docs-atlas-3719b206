@@ -1,0 +1,460 @@
+---
+title: Views and Panels
+description: Creating custom views and panels for the VS Code sidebar, panel, and auxiliary bar
+---
+
+Views are the building blocks of VS Code's sidebar, panel, and auxiliary bar. They provide custom UI for displaying hierarchical data, trees, webviews, and other content.
+
+## Understanding Views
+
+A **view** is a UI component that:
+
+- Lives inside a **view container** (sidebar, panel, or auxiliary bar)
+- Can display trees, lists, webviews, or custom content
+- Has a title, icon, and optional actions
+- Can be shown, hidden, moved, or resized by users
+- Integrates with VS Code's layout system
+
+<Info>
+Views are registered through the `IViewsRegistry` and managed by the `IViewDescriptorService`.
+</Info>
+
+## View Architecture
+
+### View Hierarchy
+
+```
+View Container (e.g., Explorer)
+  ├── View 1 (e.g., Folder Explorer)
+  ├── View 2 (e.g., Outline)
+  └── View 3 (e.g., Timeline)
+```
+
+### View Locations
+
+```typescript:src/vs/workbench/common/views.ts
+export enum ViewContainerLocation {
+	Sidebar,
+	Panel,
+	AuxiliaryBar
+}
+```
+
+<Accordion title="View Container Locations">
+
+**Sidebar** (`ViewContainerLocation.Sidebar`)
+- Primary location for navigation and exploration
+- Examples: Explorer, Search, Source Control, Extensions
+- Typically on the left (or right if configured)
+
+**Panel** (`ViewContainerLocation.Panel`)
+- Secondary location for tools and output
+- Examples: Terminal, Problems, Output, Debug Console
+- Typically at the bottom
+
+**Auxiliary Bar** (`ViewContainerLocation.AuxiliaryBar`)
+- Additional sidebar for extra views
+- Can be placed opposite the main sidebar
+- For overflow or secondary content
+
+</Accordion>
+
+## Creating a View Container
+
+### Step 1: Register the View Container
+
+```typescript
+import { Registry } from 'vs/platform/registry/common/platform';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { 
+	Extensions as ViewExtensions, 
+	IViewContainersRegistry, 
+	ViewContainerLocation 
+} from 'vs/workbench/common/views';
+
+const MY_VIEW_CONTAINER_ID = 'myExtension.myViewContainer';
+
+const MY_VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry)
+	.registerViewContainer({
+		id: MY_VIEW_CONTAINER_ID,
+		title: 'My View Container',
+		icon: Codicon.symbolColor, // Icon for activity bar
+		order: 5, // Position in activity bar
+		ctorDescriptor: new SyncDescriptor(
+			ViewPaneContainer,
+			[MY_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]
+		),
+		storageId: MY_VIEW_CONTAINER_ID, // For persisting state
+		hideIfEmpty: true // Hide when no views are visible
+	}, ViewContainerLocation.Sidebar);
+```
+
+### Step 2: Create a View Pane
+
+```typescript
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { IViewDescriptorService } from 'vs/workbench/services/views/common/viewDescriptorService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+
+export class MyViewPane extends ViewPane {
+
+	static readonly ID = 'myExtension.myView';
+	static readonly TITLE = 'My View';
+
+	constructor(
+		options: IViewletViewOptions,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
+	) {
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+	}
+
+	protected override renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+		
+		// Create your view content
+		const content = document.createElement('div');
+		content.className = 'my-view-content';
+		content.textContent = 'Hello from my custom view!';
+		container.appendChild(content);
+	}
+
+	protected override layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
+		// Handle layout changes
+	}
+}
+```
+
+### Step 3: Register the View
+
+```typescript
+import { Extensions as ViewExtensions, IViewsRegistry } from 'vs/workbench/common/views';
+
+const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+
+viewsRegistry.registerViews([{
+	id: MyViewPane.ID,
+	name: MyViewPane.TITLE,
+	containerIcon: Codicon.symbolColor,
+	canToggleVisibility: true,
+	canMoveView: true,
+	ctorDescriptor: new SyncDescriptor(MyViewPane),
+	order: 1,
+	when: undefined // Context key expression for when to show
+}], MY_VIEW_CONTAINER);
+```
+
+## Creating a Tree View
+
+For hierarchical data, use a tree view:
+
+```typescript
+import { TreeView } from 'vs/workbench/browser/parts/views/treeView';
+import { ITreeViewDataProvider } from 'vs/workbench/common/views';
+
+export class MyTreeViewPane extends ViewPane {
+
+	private treeView: TreeView | undefined;
+
+	protected override renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+		
+		// Create tree view
+		this.treeView = this.instantiationService.createInstance(
+			TreeView,
+			MyTreeViewPane.ID,
+			this.title
+		);
+		
+		// Set data provider
+		this.treeView.dataProvider = new MyDataProvider();
+		
+		// Render tree
+		this.treeView.setInput(undefined);
+		this._register(this.treeView);
+		
+		const treeContainer = container.appendChild($('.tree-explorer-viewlet-tree-view'));
+		treeContainer.appendChild(this.treeView.domNode);
+	}
+
+	protected override layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
+		this.treeView?.layout(height, width);
+	}
+}
+
+class MyDataProvider implements ITreeViewDataProvider {
+	async getChildren(element?: any): Promise<any[]> {
+		if (!element) {
+			// Return root elements
+			return [
+				{ label: 'Item 1', id: '1' },
+				{ label: 'Item 2', id: '2' }
+			];
+		}
+		// Return children of element
+		return [];
+	}
+	
+	async getTreeItem(element: any): Promise<any> {
+		return {
+			label: element.label,
+			collapsibleState: TreeItemCollapsibleState.None
+		};
+	}
+}
+```
+
+## View Pane Container
+
+The `ViewPaneContainer` manages multiple view panes:
+
+```typescript:src/vs/workbench/browser/parts/views/viewPaneContainer.ts
+export interface IViewPaneContainerOptions extends IPaneViewOptions {
+	mergeViewWithContainerWhenSingleView: boolean;
+}
+
+export abstract class ViewPaneContainer extends Composite implements IViewPaneContainer {
+
+	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
+	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+
+	private readonly _onDidAddViews = this._register(new Emitter<IView[]>());
+	readonly onDidAddViews = this._onDidAddViews.event;
+
+	private readonly _onDidRemoveViews = this._register(new Emitter<IView[]>());
+	readonly onDidRemoveViews = this._onDidRemoveViews.event;
+
+	private paneItems: IViewPaneItem[] = [];
+	private paneview?: PaneView;
+
+	constructor(
+		id: string,
+		options: IViewPaneContainerOptions,
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IConfigurationService protected configurationService: IConfigurationService,
+		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IExtensionService protected extensionService: IExtensionService,
+		@IThemeService themeService: IThemeService,
+		@IStorageService protected storageService: IStorageService,
+		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService
+	) {
+		super(id, telemetryService, themeService, storageService);
+	}
+}
+```
+
+## View Descriptor Service
+
+The `ViewDescriptorService` manages view registration and location:
+
+```typescript:src/vs/workbench/services/views/browser/viewDescriptorService.ts
+export class ViewDescriptorService extends Disposable implements IViewDescriptorService {
+	
+	private readonly _onDidChangeContainer: Emitter<{ 
+		views: IViewDescriptor[]; 
+		from: ViewContainer; 
+		to: ViewContainer 
+	}>;
+	readonly onDidChangeContainer: Event<{ 
+		views: IViewDescriptor[]; 
+		from: ViewContainer; 
+		to: ViewContainer 
+	}>;
+
+	private readonly _onDidChangeLocation: Emitter<{ 
+		views: IViewDescriptor[]; 
+		from: ViewContainerLocation; 
+		to: ViewContainerLocation 
+	}>;
+	readonly onDidChangeLocation: Event<{ 
+		views: IViewDescriptor[]; 
+		from: ViewContainerLocation; 
+		to: ViewContainerLocation 
+	}>;
+
+	// Get view container location
+	getViewContainerLocation(container: ViewContainer): ViewContainerLocation | null;
+	
+	// Move view to different container
+	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void;
+	
+	// Move view to different container
+	moveViewsToContainer(views: IViewDescriptor[], container: ViewContainer): void;
+}
+```
+
+## Real-World Example: Debug Views
+
+From the Debug contribution:
+
+```typescript:src/vs/workbench/contrib/debug/browser/debug.contribution.ts
+// Register debug view container
+const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry)
+	.registerViewContainer({
+		id: VIEWLET_ID,
+		title: nls.localize('run', "Run"),
+		icon: icons.debugViewIcon,
+		order: 2,
+		ctorDescriptor: new SyncDescriptor(DebugViewPaneContainer),
+		storageId: 'workbench.debug.viewlet.state',
+		hideIfEmpty: true
+	}, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
+
+// Register individual views
+Register.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
+	id: VARIABLES_VIEW_ID,
+	name: nls.localize('variables', "Variables"),
+	containerIcon: icons.debugViewIcon,
+	canToggleVisibility: true,
+	canMoveView: true,
+	ctorDescriptor: new SyncDescriptor(VariablesView),
+	order: 10,
+	when: CONTEXT_DEBUG_UX.isEqualTo('default')
+}], VIEW_CONTAINER);
+```
+
+## View Actions
+
+Add actions to view titles:
+
+```typescript
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+
+// Register view title action
+MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+	command: {
+		id: 'myExtension.refreshView',
+		title: 'Refresh',
+		icon: Codicon.refresh
+	},
+	group: 'navigation',
+	when: ContextKeyExpr.equals('view', MyViewPane.ID)
+});
+```
+
+## View Context
+
+Use context keys to control view visibility:
+
+```typescript
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+
+// Register view with context
+viewsRegistry.registerViews([{
+	id: MyViewPane.ID,
+	name: MyViewPane.TITLE,
+	ctorDescriptor: new SyncDescriptor(MyViewPane),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals('config.myExtension.enabled', true),
+		ContextKeyExpr.notEquals('workbenchState', 'empty')
+	)
+}], MY_VIEW_CONTAINER);
+```
+
+## Webview Views
+
+For custom HTML/CSS/JS content:
+
+```typescript
+import { WebviewPane } from 'vs/workbench/contrib/webviewPanel/browser/webviewPanel';
+
+export class MyWebviewPane extends ViewPane {
+
+	private webview: Webview | undefined;
+
+	protected override renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+		
+		this.webview = this._register(this.instantiationService.createInstance(
+			Webview,
+			{ /* webview options */ }
+		));
+		
+		// Set HTML content
+		this.webview.setHtml(`
+			<!DOCTYPE html>
+			<html>
+			<body>
+				<h1>Custom Webview Content</h1>
+				<button onclick="alert('Hello!')">Click Me</button>
+			</body>
+			</html>
+		`);
+		
+		container.appendChild(this.webview.container);
+	}
+}
+```
+
+## Best Practices
+
+<Accordion title="View Development Best Practices">
+
+1. **Lazy Loading**: Use `when` context keys to only show views when relevant
+2. **Proper Disposal**: Always dispose resources in `dispose()` method
+3. **Responsive Layout**: Handle `layoutBody()` for proper resizing
+4. **State Persistence**: Use storage service to save view state
+5. **Performance**: Virtualize large lists/trees for better performance
+6. **Accessibility**: Ensure keyboard navigation and screen reader support
+7. **Context Keys**: Use specific context keys for view-specific commands
+8. **Error Handling**: Show user-friendly messages for errors
+
+</Accordion>
+
+## Debugging Views
+
+Use these techniques to debug views:
+
+```typescript
+// Log view lifecycle
+protected override renderBody(container: HTMLElement): void {
+	super.renderBody(container);
+	this.logService.info(`${MyViewPane.ID}: renderBody called`);
+}
+
+protected override layoutBody(height: number, width: number): void {
+	super.layoutBody(height, width);
+	this.logService.info(`${MyViewPane.ID}: layout ${width}x${height}`);
+}
+
+override dispose(): void {
+	this.logService.info(`${MyViewPane.ID}: disposed`);
+	super.dispose();
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Tree Views" icon="tree" href="/api/tree-views">
+    Learn more about creating tree views
+  </Card>
+  <Card title="Webviews" icon="window-restore" href="/api/webviews">
+    Create rich HTML/CSS/JS views with webviews
+  </Card>
+  <Card title="Commands" icon="terminal" href="/api/commands">
+    Add commands and actions to your views
+  </Card>
+  <Card title="Themes" icon="palette" href="/api/themes">
+    Style your views with theme colors
+  </Card>
+</CardGroup>

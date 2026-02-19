@@ -1,0 +1,475 @@
+---
+title: Base Layer
+description: Foundation utilities and cross-platform abstractions in VS Code
+---
+
+## Overview
+
+The Base Layer (`src/vs/base/`) provides the foundational utilities and abstractions that all other layers build upon. It contains **zero dependencies** on other VS Code layers, making it the most reusable and testable part of the codebase.
+
+## Directory Structure
+
+```
+src/vs/base/
+├── browser/          # Browser-specific utilities (DOM, events, etc.)
+├── common/           # Platform-independent utilities
+├── node/             # Node.js-specific utilities
+└── parts/            # Reusable UI components
+    ├── quickinput/   # Quick pick and input box
+    ├── tree/         # Tree widget
+    └── ipc/          # Inter-process communication
+```
+
+## Core Utilities
+
+### Lifecycle Management
+
+<Accordion title="Disposables - Memory Management">
+The disposable pattern is fundamental to preventing memory leaks in VS Code.
+
+Located in: `src/vs/base/common/lifecycle.ts`
+
+```typescript
+import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+
+// Basic disposable interface
+export interface IDisposable {
+	dispose(): void;
+}
+
+// Disposable base class
+class MyComponent extends Disposable {
+	private readonly timer: NodeJS.Timeout;
+
+	constructor() {
+		super();
+		// Register disposables immediately upon creation
+		this.timer = setInterval(() => this.update(), 1000);
+		this._register(toDisposable(() => clearInterval(this.timer)));
+	}
+
+	private update(): void {
+		// Update logic
+	}
+}
+
+// Usage
+const component = new MyComponent();
+// Later...
+component.dispose(); // Cleans up timer automatically
+```
+</Accordion>
+
+<Accordion title="DisposableStore - Managing Multiple Resources">
+```typescript
+import { DisposableStore } from 'vs/base/common/lifecycle';
+
+class ComplexComponent {
+	private readonly disposables = new DisposableStore();
+
+	constructor() {
+		// Add multiple disposables
+		this.disposables.add(resource1);
+		this.disposables.add(resource2);
+		this.disposables.add(resource3);
+	}
+
+	public updateResources(): void {
+		// Clear and recreate resources
+		this.disposables.clear();
+		this.disposables.add(newResource1);
+		this.disposables.add(newResource2);
+	}
+
+	public dispose(): void {
+		// Dispose all at once
+		this.disposables.dispose();
+	}
+}
+```
+</Accordion>
+
+<Info>
+**Critical Rule**: Always dispose resources immediately after creation. Use `DisposableStore`, `MutableDisposable`, or `DisposableMap` to manage disposables properly.
+</Info>
+
+### Event System
+
+<Accordion title="Events - Type-Safe Event Handling">
+VS Code implements a custom event system for type-safe, disposable event handling.
+
+Located in: `src/vs/base/common/event.ts`
+
+```typescript
+import { Event, Emitter } from 'vs/base/common/event';
+
+// Event interface
+export interface Event<T> {
+	(listener: (e: T) => unknown, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
+}
+
+// Creating and firing events
+class FileWatcher {
+	private readonly _onDidChange = new Emitter<string>();
+	// Expose as Event, not Emitter (principle of least privilege)
+	readonly onDidChange: Event<string> = this._onDidChange.event;
+
+	private watchFile(path: string): void {
+		// When file changes...
+		this._onDidChange.fire(path);
+	}
+
+	dispose(): void {
+		this._onDidChange.dispose();
+	}
+}
+
+// Listening to events
+const watcher = new FileWatcher();
+const disposable = watcher.onDidChange(path => {
+	console.log('File changed:', path);
+});
+
+// Clean up
+disposable.dispose();
+```
+</Accordion>
+
+<Accordion title="Event Utilities - Transformation and Filtering">
+```typescript
+import { Event } from 'vs/base/common/event';
+
+// Filter events
+const filtered = Event.filter(someEvent, value => value > 10);
+
+// Map events
+const mapped = Event.map(someEvent, value => value.toString());
+
+// Debounce events
+const debounced = Event.debounce(someEvent, (last, current) => current, 100);
+
+// Fire only once
+const once = Event.once(someEvent);
+
+// Combine multiple events
+const combined = Event.any(event1, event2, event3);
+```
+</Accordion>
+
+### Async Utilities
+
+<Accordion title="Promises and Async Operations">
+Located in: `src/vs/base/common/async.ts`
+
+```typescript
+import { timeout, Barrier, Throttler, Sequencer } from 'vs/base/common/async';
+
+// Timeout utility
+await timeout(1000); // Wait 1 second
+
+// Barrier - wait for signal
+const barrier = new Barrier();
+barrier.wait().then(() => console.log('Barrier opened'));
+barrier.open(); // Releases all waiters
+
+// Throttler - limit concurrent operations
+const throttler = new Throttler();
+for (const item of items) {
+	throttler.queue(() => processItem(item));
+}
+
+// Sequencer - ensure sequential execution
+const sequencer = new Sequencer();
+sequencer.queue(() => step1());
+sequencer.queue(() => step2()); // Waits for step1
+```
+</Accordion>
+
+<Accordion title="RunOnceScheduler - Debounced Execution">
+```typescript
+import { RunOnceScheduler } from 'vs/base/common/async';
+
+class TextEditor {
+	private readonly updateDecorations: RunOnceScheduler;
+
+	constructor() {
+		// Run at most once every 100ms
+		this.updateDecorations = new RunOnceScheduler(
+			() => this.doUpdateDecorations(),
+			100
+		);
+	}
+
+	private onDidChangeContent(): void {
+		// Schedule, but don't execute immediately
+		this.updateDecorations.schedule();
+	}
+
+	private doUpdateDecorations(): void {
+		// Actual update logic
+	}
+}
+```
+</Accordion>
+
+### URI Handling
+
+<Accordion title="URI - Universal Resource Identifier">
+Located in: `src/vs/base/common/uri.ts`
+
+```typescript
+import { URI } from 'vs/base/common/uri';
+
+// Create URIs
+const fileUri = URI.file('/path/to/file.txt');
+const httpUri = URI.parse('https://example.com/page');
+const customUri = URI.from({
+	scheme: 'vscode',
+	authority: 'extension',
+	path: '/resource',
+	query: 'key=value',
+	fragment: 'section'
+});
+
+// Access components
+console.log(fileUri.scheme);    // 'file'
+console.log(fileUri.path);      // '/path/to/file.txt'
+console.log(fileUri.fsPath);    // Platform-specific path
+
+// Transform URIs
+const parent = fileUri.with({ path: '/path/to' });
+const renamed = fileUri.with({ path: '/path/to/renamed.txt' });
+
+// Compare URIs
+if (URI.isUri(value)) {
+	const isEqual = value.toString() === fileUri.toString();
+}
+```
+</Accordion>
+
+## Browser Utilities
+
+The `src/vs/base/browser/` directory contains browser-specific utilities:
+
+### DOM Manipulation
+
+<Accordion title="DOM Utilities">
+Located in: `src/vs/base/browser/dom.ts`
+
+```typescript
+import * as dom from 'vs/base/browser/dom';
+
+// Create elements with helper
+const container = dom.$('.my-container', { title: 'Container' },
+	dom.$('span.label', undefined, 'Hello'),
+	dom.$('button', { type: 'button' }, 'Click me')
+);
+
+// Add disposable listeners
+const disposable = dom.addDisposableListener(
+	element,
+	'click',
+	(e: MouseEvent) => console.log('Clicked!')
+);
+
+// Dimensions
+const size = dom.getClientArea(element);
+console.log(size.width, size.height);
+
+// Visibility
+dom.hide(element);
+dom.show(element);
+
+// Class management
+dom.addClass(element, 'active');
+dom.removeClass(element, 'disabled');
+dom.toggleClass(element, 'selected');
+```
+</Accordion>
+
+### Keyboard and Mouse Events
+
+```typescript
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+
+// Keyboard events with metadata
+function handleKeyDown(e: IKeyboardEvent): void {
+	if (e.ctrlKey && e.keyCode === KeyCode.KEY_S) {
+		e.preventDefault();
+		save();
+	}
+}
+
+// Mouse events with position info
+function handleClick(e: IMouseEvent): void {
+	console.log('Button:', e.button);
+	console.log('Position:', e.posx, e.posy);
+	console.log('Target:', e.target);
+}
+```
+
+## Common Utilities
+
+The `src/vs/base/common/` directory contains platform-independent utilities:
+
+### Collections
+
+<Tabs>
+  <Tab title="Arrays">
+    Located in: `src/vs/base/common/arrays.ts`
+    ```typescript
+    import { distinct, coalesce, equals } from 'vs/base/common/arrays';
+
+    // Remove duplicates
+    const unique = distinct([1, 2, 2, 3, 3, 3]); // [1, 2, 3]
+
+    // Remove null/undefined
+    const clean = coalesce([1, null, 2, undefined, 3]); // [1, 2, 3]
+
+    // Deep equality
+    const same = equals([1, 2, 3], [1, 2, 3]); // true
+
+    // Binary search
+    import { binarySearch } from 'vs/base/common/arrays';
+    const index = binarySearch(sortedArray, item, (a, b) => a - b);
+    ```
+  </Tab>
+  <Tab title="Maps">
+    Located in: `src/vs/base/common/map.ts`
+    ```typescript
+    import { ResourceMap, SetMap } from 'vs/base/common/map';
+
+    // URI-aware map
+    const resourceMap = new ResourceMap<string>();
+    resourceMap.set(fileUri, 'content');
+    const value = resourceMap.get(fileUri);
+
+    // Map of sets
+    const setMap = new SetMap<string, number>();
+    setMap.add('group1', 1);
+    setMap.add('group1', 2);
+    const values = setMap.get('group1'); // Set {1, 2}
+    ```
+  </Tab>
+  <Tab title="Strings">
+    Located in: `src/vs/base/common/strings.ts`
+    ```typescript
+    import * as strings from 'vs/base/common/strings';
+
+    // Case-insensitive comparison
+    const equal = strings.equalsIgnoreCase('Hello', 'hello');
+
+    // Format strings
+    const formatted = strings.format('Hello {0}!', 'World');
+
+    // Escape regex
+    const escaped = strings.escapeRegExpCharacters('[test]');
+
+    // UTF-8 operations
+    const length = strings.UTF8.getByteLength('hello');
+    ```
+  </Tab>
+</Tabs>
+
+### Platform Detection
+
+```typescript
+import { isWindows, isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
+
+if (isWindows) {
+	// Windows-specific logic
+} else if (isMacintosh) {
+	// macOS-specific logic
+} else if (isLinux) {
+	// Linux-specific logic
+}
+
+if (isWeb) {
+	// Running in browser (vscode.dev)
+} else {
+	// Running in Electron
+}
+```
+
+## Reusable UI Parts
+
+The `src/vs/base/parts/` directory contains reusable UI components:
+
+<Accordion title="QuickInput - Command Palette Widget">
+```typescript
+import { QuickInputService } from 'vs/base/parts/quickinput/browser/quickInput';
+
+// Show quick pick
+const selected = await quickInput.pick(
+	['Option 1', 'Option 2', 'Option 3'],
+	{ placeHolder: 'Select an option' }
+);
+
+// Show input box
+const value = await quickInput.input({
+	prompt: 'Enter a value',
+	validateInput: async (value) => {
+		return value.length > 0 ? null : 'Value cannot be empty';
+	}
+});
+```
+</Accordion>
+
+<Accordion title="Tree Widget - Hierarchical List">
+```typescript
+import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
+
+// Create tree
+const tree = new ObjectTree<ITreeNode>(
+	container,
+	delegate,
+	renderers,
+	options
+);
+
+// Set data
+tree.setChildren(null, [
+	{ element: node1, children: [node2, node3] },
+	{ element: node4 }
+]);
+```
+</Accordion>
+
+## Performance Utilities
+
+```typescript
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { mark } from 'vs/base/common/performance';
+
+// Measure execution time
+const stopwatch = StopWatch.create();
+performExpensiveOperation();
+console.log('Took:', stopwatch.elapsed(), 'ms');
+
+// Performance marks for profiling
+mark('operation/start');
+performOperation();
+mark('operation/end');
+```
+
+## Key Takeaways
+
+<Note>
+- The Base Layer has **no dependencies** on other VS Code layers
+- All resources must be properly **disposed** using the Disposable pattern
+- Use **Events** for type-safe, disposable communication between components
+- Platform-specific code is separated into `browser/`, `common/`, and `node/` directories
+- The Base Layer provides the foundation for all higher-level functionality
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Platform Layer" icon="cubes" href="/architecture/platform-layer">
+    Learn about platform services and dependency injection
+  </Card>
+  <Card title="Architecture Overview" icon="sitemap" href="/architecture/overview">
+    Return to architecture overview
+  </Card>
+</CardGroup>

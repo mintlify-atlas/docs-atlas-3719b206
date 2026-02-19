@@ -1,0 +1,747 @@
+---
+title: "Webview API"
+description: "Create rich, interactive custom UI panels in VS Code using HTML, CSS, and JavaScript"
+---
+
+The Webview API allows extensions to create fully customizable views within VS Code using HTML, CSS, and JavaScript. Webviews can display rich content, interactive UI, and communicate bidirectionally with your extension.
+
+## Overview
+
+Webviews enable:
+- Custom editors and visualizations
+- Rich previews (Markdown, SVG, etc.)
+- Interactive dashboards and forms
+- Embedded web applications
+- Custom data viewers
+
+<Warning>
+Webviews are powerful but come with security implications. Always sanitize untrusted content and set proper Content Security Policies.
+</Warning>
+
+## Creating Webview Panels
+
+### Basic Webview Panel
+
+Create a webview panel with `window.createWebviewPanel()`:
+
+```typescript
+import * as vscode from 'vscode';
+
+function createWebviewPanel(context: vscode.ExtensionContext) {
+  // Create and show panel
+  const panel = vscode.window.createWebviewPanel(
+    'myWebview',              // Identifies the type of the webview
+    'My Webview',             // Title displayed in the editor
+    vscode.ViewColumn.One,    // Editor column to show in
+    {
+      enableScripts: true,    // Enable JavaScript in the webview
+      retainContextWhenHidden: false
+    }
+  );
+
+  // Set HTML content
+  panel.webview.html = getWebviewContent();
+}
+
+function getWebviewContent(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Webview</title>
+</head>
+<body>
+    <h1>Hello from Webview!</h1>
+    <button onclick="sendMessage()">Click Me</button>
+    
+    <script>
+        const vscode = acquireVsCodeApi();
+        
+        function sendMessage() {
+            vscode.postMessage({
+                command: 'alert',
+                text: 'Button clicked!'
+            });
+        }
+    </script>
+</body>
+</html>`;
+}
+```
+
+## Webview Interface
+
+The `Webview` interface provides methods for communication and content management:
+
+<Accordion title="Webview Interface">
+```typescript
+interface Webview {
+  /**
+   * Content settings for the webview.
+   */
+  options: WebviewOptions;
+
+  /**
+   * HTML contents of the webview. Must be a complete, valid HTML document.
+   */
+  html: string;
+
+  /**
+   * Fired when the webview content posts a message.
+   */
+  readonly onDidReceiveMessage: Event<any>;
+
+  /**
+   * Post a message to the webview content.
+   */
+  postMessage(message: any): Thenable<boolean>;
+
+  /**
+   * Convert a uri for the local file system to one that can be used inside webviews.
+   */
+  asWebviewUri(localResource: Uri): Uri;
+
+  /**
+   * Content security policy source for webview resources.
+   */
+  readonly cspSource: string;
+}
+```
+</Accordion>
+
+## Webview Options
+
+Configure webview behavior with `WebviewOptions`:
+
+<AccordionGroup>
+  <Accordion title="enableScripts">
+    Enable JavaScript execution in the webview. Defaults to `false`.
+
+    ```typescript
+    const panel = vscode.window.createWebviewPanel('type', 'Title', vscode.ViewColumn.One, {
+      enableScripts: true
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="localResourceRoots">
+    List of URI roots from which the webview can load local resources. Restricts which files can be accessed.
+
+    ```typescript
+    const panel = vscode.window.createWebviewPanel('type', 'Title', vscode.ViewColumn.One, {
+      enableScripts: true,
+      localResourceRoots: [
+        vscode.Uri.joinPath(context.extensionUri, 'media'),
+        vscode.Uri.joinPath(context.extensionUri, 'node_modules')
+      ]
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="enableFindWidget">
+    Enable the find widget in the webview panel. Defaults to `false`.
+
+    ```typescript
+    const panel = vscode.window.createWebviewPanel('type', 'Title', vscode.ViewColumn.One, {
+      enableFindWidget: true
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="retainContextWhenHidden">
+    Keep the webview's context (iframe) around even when hidden. Has high memory overhead. Defaults to `false`.
+
+    ```typescript
+    const panel = vscode.window.createWebviewPanel('type', 'Title', vscode.ViewColumn.One, {
+      retainContextWhenHidden: true  // Use sparingly!
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Loading Local Resources
+
+### Using asWebviewUri()
+
+Convert local file URIs to webview-safe URIs:
+
+```typescript
+function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri): string {
+  // Local path to script and CSS
+  const scriptUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionUri, 'media', 'main.js')
+  );
+  const styleUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionUri, 'media', 'style.css')
+  );
+  const imageUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionUri, 'media', 'logo.png')
+  );
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link href="${styleUri}" rel="stylesheet">
+</head>
+<body>
+    <img src="${imageUri}" alt="Logo">
+    <script src="${scriptUri}"></script>
+</body>
+</html>`;
+}
+```
+
+### Resource Root Configuration
+
+```typescript
+const panel = vscode.window.createWebviewPanel(
+  'resourceExample',
+  'Resource Example',
+  vscode.ViewColumn.One,
+  {
+    enableScripts: true,
+    localResourceRoots: [
+      vscode.Uri.joinPath(context.extensionUri, 'media'),
+      vscode.Uri.joinPath(context.extensionUri, 'dist')
+    ]
+  }
+);
+
+panel.webview.html = getWebviewContent(panel.webview, context.extensionUri);
+```
+
+## Message Passing
+
+Webviews communicate with extensions through message passing.
+
+### Extension to Webview
+
+Send messages from extension to webview:
+
+```typescript
+// In extension code
+panel.webview.postMessage({
+  command: 'update',
+  data: { count: 42 }
+});
+```
+
+```javascript
+// In webview HTML
+const vscode = acquireVsCodeApi();
+
+window.addEventListener('message', event => {
+  const message = event.data;
+  
+  switch (message.command) {
+    case 'update':
+      document.getElementById('count').textContent = message.data.count;
+      break;
+  }
+});
+```
+
+### Webview to Extension
+
+Send messages from webview to extension:
+
+```javascript
+// In webview HTML
+const vscode = acquireVsCodeApi();
+
+document.getElementById('button').addEventListener('click', () => {
+  vscode.postMessage({
+    command: 'save',
+    data: { value: 'test' }
+  });
+});
+```
+
+```typescript
+// In extension code
+panel.webview.onDidReceiveMessage(
+  message => {
+    switch (message.command) {
+      case 'save':
+        vscode.window.showInformationMessage(`Saving: ${message.data.value}`);
+        return;
+    }
+  },
+  undefined,
+  context.subscriptions
+);
+```
+
+## Complete Example: Interactive Counter
+
+<CodeGroup>
+```typescript Extension Code
+import * as vscode from 'vscode';
+
+export function activate(context: vscode.ExtensionContext) {
+  context.subscriptions.push(
+    vscode.commands.registerCommand('extension.openCounter', () => {
+      const panel = vscode.window.createWebviewPanel(
+        'counter',
+        'Counter',
+        vscode.ViewColumn.One,
+        { enableScripts: true }
+      );
+
+      let count = 0;
+      panel.webview.html = getCounterHtml(count);
+
+      // Handle messages from webview
+      panel.webview.onDidReceiveMessage(
+        message => {
+          switch (message.command) {
+            case 'increment':
+              count++;
+              panel.webview.postMessage({ command: 'update', count });
+              return;
+            case 'decrement':
+              count--;
+              panel.webview.postMessage({ command: 'update', count });
+              return;
+            case 'reset':
+              count = 0;
+              panel.webview.postMessage({ command: 'update', count });
+              vscode.window.showInformationMessage('Counter reset!');
+              return;
+          }
+        },
+        undefined,
+        context.subscriptions
+      );
+    })
+  );
+}
+
+function getCounterHtml(initialCount: number): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Counter</title>
+    <style>
+        body {
+            padding: 20px;
+            font-family: var(--vscode-font-family);
+            color: var(--vscode-foreground);
+        }
+        .counter {
+            font-size: 48px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+    </style>
+</head>
+<body>
+    <h1>Interactive Counter</h1>
+    <div class="counter" id="count">${initialCount}</div>
+    <div class="buttons">
+        <button id="decrement">-</button>
+        <button id="reset">Reset</button>
+        <button id="increment">+</button>
+    </div>
+    
+    <script>
+        const vscode = acquireVsCodeApi();
+        
+        document.getElementById('increment').addEventListener('click', () => {
+            vscode.postMessage({ command: 'increment' });
+        });
+        
+        document.getElementById('decrement').addEventListener('click', () => {
+            vscode.postMessage({ command: 'decrement' });
+        });
+        
+        document.getElementById('reset').addEventListener('click', () => {
+            vscode.postMessage({ command: 'reset' });
+        });
+        
+        window.addEventListener('message', event => {
+            const message = event.data;
+            if (message.command === 'update') {
+                document.getElementById('count').textContent = message.count;
+            }
+        });
+    </script>
+</body>
+</html>`;
+}
+```
+</CodeGroup>
+
+## Content Security Policy
+
+Always set a Content Security Policy to protect against malicious content:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" 
+          content="default-src 'none'; 
+                   img-src ${webview.cspSource} https:; 
+                   script-src ${webview.cspSource}; 
+                   style-src ${webview.cspSource} 'unsafe-inline';">
+    <title>Secure Webview</title>
+</head>
+<body>
+    <!-- Content -->
+</body>
+</html>
+```
+
+### CSP Directives
+
+<AccordionGroup>
+  <Accordion title="default-src 'none'">
+    Block all content by default. Explicitly allow what you need.
+
+    ```html
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none';">
+    ```
+  </Accordion>
+
+  <Accordion title="img-src">
+    Allow images from webview resources and HTTPS URLs.
+
+    ```html
+    content="img-src ${webview.cspSource} https:;"
+    ```
+  </Accordion>
+
+  <Accordion title="script-src">
+    Allow scripts only from your extension. Never use 'unsafe-inline' or 'unsafe-eval'.
+
+    ```html
+    content="script-src ${webview.cspSource};"
+    ```
+  </Accordion>
+
+  <Accordion title="style-src">
+    Allow styles from your extension. 'unsafe-inline' is needed for inline styles.
+
+    ```html
+    content="style-src ${webview.cspSource} 'unsafe-inline';"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Webview State Persistence
+
+### Using getState() and setState()
+
+Persist webview state within a session:
+
+```javascript
+// In webview HTML
+const vscode = acquireVsCodeApi();
+
+// Get previous state
+const previousState = vscode.getState() || { count: 0 };
+
+// Update UI with previous state
+document.getElementById('count').textContent = previousState.count;
+
+// Save state when it changes
+function updateCount(newCount) {
+  vscode.setState({ count: newCount });
+  document.getElementById('count').textContent = newCount;
+}
+```
+
+### Serialization Across Sessions
+
+Use `WebviewPanelSerializer` to restore webviews across VS Code restarts:
+
+```typescript
+export function activate(context: vscode.ExtensionContext) {
+  // Register a serializer for restoring webviews
+  vscode.window.registerWebviewPanelSerializer('counter', {
+    async deserializeWebviewPanel(webviewPanel: vscode.WebviewPanel, state: any) {
+      // Restore the webview state
+      const count = state?.count || 0;
+      webviewPanel.webview.html = getCounterHtml(count);
+      
+      // Reattach event handlers
+      setupWebviewMessageHandling(webviewPanel, context);
+    }
+  });
+}
+```
+
+## Webview Views
+
+Create webviews in the sidebar, panel, or other view containers:
+
+### Registering a Webview View
+
+```typescript
+export function activate(context: vscode.ExtensionContext) {
+  const provider = new MyWebviewViewProvider(context.extensionUri);
+
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider('myExtension.view', provider)
+  );
+}
+
+class MyWebviewViewProvider implements vscode.WebviewViewProvider {
+  constructor(private readonly _extensionUri: vscode.Uri) {}
+
+  public resolveWebviewView(
+    webviewView: vscode.WebviewView,
+    context: vscode.WebviewViewResolveContext,
+    _token: vscode.CancellationToken
+  ) {
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [this._extensionUri]
+    };
+
+    webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+
+    // Handle messages from webview
+    webviewView.webview.onDidReceiveMessage(data => {
+      switch (data.type) {
+        case 'colorSelected':
+          vscode.window.showInformationMessage(data.value);
+          break;
+      }
+    });
+  }
+
+  private _getHtmlForWebview(webview: vscode.Webview) {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My View</title>
+</head>
+<body>
+    <h3>My Sidebar View</h3>
+    <p>This appears in the sidebar!</p>
+</body>
+</html>`;
+  }
+}
+```
+
+### Package.json Contribution
+
+```json
+{
+  "contributes": {
+    "views": {
+      "explorer": [
+        {
+          "type": "webview",
+          "id": "myExtension.view",
+          "name": "My View"
+        }
+      ]
+    }
+  }
+}
+```
+
+## Custom Text Editors
+
+Create custom editors for specific file types:
+
+```typescript
+export function activate(context: vscode.ExtensionContext) {
+  context.subscriptions.push(
+    vscode.window.registerCustomEditorProvider(
+      'myExtension.customEditor',
+      new MyCustomEditorProvider(context),
+      {
+        webviewOptions: {
+          retainContextWhenHidden: true
+        },
+        supportsMultipleEditorsPerDocument: false
+      }
+    )
+  );
+}
+
+class MyCustomEditorProvider implements vscode.CustomTextEditorProvider {
+  constructor(private readonly context: vscode.ExtensionContext) {}
+
+  public async resolveCustomTextEditor(
+    document: vscode.TextDocument,
+    webviewPanel: vscode.WebviewPanel,
+    _token: vscode.CancellationToken
+  ): Promise<void> {
+    webviewPanel.webview.options = {
+      enableScripts: true
+    };
+    webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
+
+    // Update webview when document changes
+    const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(e => {
+      if (e.document.uri.toString() === document.uri.toString()) {
+        this.updateWebview(webviewPanel.webview, document);
+      }
+    });
+
+    webviewPanel.onDidDispose(() => {
+      changeDocumentSubscription.dispose();
+    });
+
+    // Handle edits from webview
+    webviewPanel.webview.onDidReceiveMessage(e => {
+      switch (e.type) {
+        case 'update':
+          this.updateTextDocument(document, e.text);
+          return;
+      }
+    });
+
+    this.updateWebview(webviewPanel.webview, document);
+  }
+
+  private updateWebview(webview: vscode.Webview, document: vscode.TextDocument) {
+    webview.postMessage({
+      type: 'update',
+      text: document.getText()
+    });
+  }
+
+  private updateTextDocument(document: vscode.TextDocument, text: string) {
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(
+      document.uri,
+      new vscode.Range(0, 0, document.lineCount, 0),
+      text
+    );
+    return vscode.workspace.applyEdit(edit);
+  }
+
+  private getHtmlForWebview(webview: vscode.Webview): string {
+    // Return HTML for custom editor
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Custom Editor</title>
+</head>
+<body>
+    <textarea id="editor"></textarea>
+    <script>
+        const vscode = acquireVsCodeApi();
+        const editor = document.getElementById('editor');
+        
+        editor.addEventListener('input', () => {
+            vscode.postMessage({
+                type: 'update',
+                text: editor.value
+            });
+        });
+        
+        window.addEventListener('message', event => {
+            const message = event.data;
+            if (message.type === 'update') {
+                editor.value = message.text;
+            }
+        });
+    </script>
+</body>
+</html>`;
+  }
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Content Security Policy">
+    Always set a strict CSP to prevent XSS attacks.
+
+    ```html
+    <meta http-equiv="Content-Security-Policy" 
+          content="default-src 'none'; script-src ${webview.cspSource};">
+    ```
+  </Accordion>
+
+  <Accordion title="Sanitize User Input">
+    Never directly inject user-provided content into HTML.
+
+    ```typescript
+    // Bad - vulnerable to XSS
+    panel.webview.html = `<div>${userInput}</div>`;
+
+    // Good - sanitize content
+    const sanitized = escapeHtml(userInput);
+    panel.webview.html = `<div>${sanitized}</div>`;
+    ```
+  </Accordion>
+
+  <Accordion title="Use VS Code CSS Variables">
+    Respect user theme by using VS Code's CSS variables.
+
+    ```css
+    body {
+        color: var(--vscode-foreground);
+        background-color: var(--vscode-editor-background);
+        font-family: var(--vscode-font-family);
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Dispose Properly">
+    Clean up event listeners when webview is disposed.
+
+    ```typescript
+    const disposable = panel.webview.onDidReceiveMessage(handleMessage);
+    panel.onDidDispose(() => {
+      disposable.dispose();
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Avoid retainContextWhenHidden">
+    Only use `retainContextWhenHidden` when absolutely necessary due to high memory cost.
+
+    ```typescript
+    // Only if state cannot be quickly saved/restored
+    retainContextWhenHidden: true
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related APIs
+
+<CardGroup cols={2}>
+  <Card title="Text Editor API" icon="code" href="/api/text-editor">
+    Work with text documents and editors
+  </Card>
+  <Card title="Workspace API" icon="folder" href="/api/workspace">
+    Access workspace files and settings
+  </Card>
+  <Card title="Commands API" icon="terminal" href="/api/commands">
+    Register commands to open webviews
+  </Card>
+</CardGroup>

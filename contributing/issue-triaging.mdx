@@ -1,0 +1,583 @@
+---
+title: 'Issue Triaging'
+description: 'Guidelines for triaging and managing issues in the VS Code repository'
+---
+
+## Overview
+
+Issue triaging is the process of reviewing, organizing, and prioritizing issues in the VS Code repository. This guide explains how the VS Code team manages issues and how contributors can help with the triaging process.
+
+<Note>
+While primarily aimed at maintainers and regular contributors, understanding the triaging process helps all contributors know what to expect when they file issues or submit pull requests.
+</Note>
+
+## Issue Lifecycle
+
+Every issue goes through a series of stages from creation to resolution:
+
+<Steps>
+  <Step title="Issue Created">
+    A user reports a bug or requests a feature using the issue template.
+  </Step>
+  <Step title="Initial Triage">
+    Team reviews the issue to:
+    - Verify it's in the correct repository
+    - Check for duplicates
+    - Add appropriate labels
+    - Request more information if needed
+  </Step>
+  <Step title="Investigation">
+    If it's a bug:
+    - Reproduce the issue
+    - Identify root cause
+    - Assess severity and impact
+  </Step>
+  <Step title="Prioritization">
+    Determine when to address:
+    - Current milestone
+    - Future milestone
+    - Backlog
+  </Step>
+  <Step title="Resolution">
+    Issue is addressed through:
+    - Code fix (via PR)
+    - Documentation update
+    - Working as designed explanation
+    - Won't fix decision
+  </Step>
+  <Step title="Closure">
+    Issue is closed with appropriate reason and milestone.
+  </Step>
+</Steps>
+
+## Issue Labels
+
+VS Code uses a comprehensive labeling system to categorize and track issues:
+
+### Type Labels
+
+<Tabs>
+  <Tab title="Bug">
+    **`bug`** - Something isn't working correctly
+    
+    Bugs are prioritized based on:
+    - Severity (data loss, crashes, functional issues)
+    - Impact (number of users affected)
+    - Workaround availability
+  </Tab>
+  
+  <Tab title="Feature Request">
+    **`feature-request`** - Request for new functionality
+    
+    Feature requests go through a specific pipeline:
+    1. Community voting and discussion
+    2. Team review and consideration
+    3. Design and implementation planning
+    4. Milestone assignment if approved
+  </Tab>
+  
+  <Tab title="Enhancement">
+    **`enhancement`** - Improvement to existing functionality
+    
+    Different from features - enhances what already exists rather than adding something entirely new.
+  </Tab>
+  
+  <Tab title="Question">
+    **`question`** - General question or discussion
+    
+    <Warning>
+    Questions should typically be asked on [Stack Overflow](https://stackoverflow.com/questions/tagged/visual-studio-code) instead of GitHub issues.
+    </Warning>
+  </Tab>
+</Tabs>
+
+### Area Labels
+
+Indicates which part of VS Code is affected:
+
+<AccordionGroup>
+  <Accordion title="Editor Areas">
+    - `editor` - Text editor core
+    - `editor-autoclosing` - Auto-closing of brackets/quotes
+    - `editor-code-actions` - Quick fixes and refactorings
+    - `editor-color-picker` - Color picker widget
+    - `editor-find` - Find and replace
+    - `editor-folding` - Code folding
+    - `editor-hover` - Hover tooltips
+    - `intellisense` - Code completion
+    - `minimap` - Minimap view
+  </Accordion>
+  
+  <Accordion title="Workbench Areas">
+    - `workbench` - VS Code UI shell
+    - `workbench-cli` - Command line interface
+    - `workbench-debug` - Debug functionality
+    - `workbench-editor-grid` - Editor layout
+    - `workbench-extensions` - Extension management
+    - `workbench-files` - File explorer
+    - `workbench-integrated-terminal` - Built-in terminal
+    - `workbench-search` - Search functionality
+    - `workbench-settings` - Settings UI
+    - `workbench-tabs` - Editor tabs
+  </Accordion>
+  
+  <Accordion title="Language & Extension Areas">
+    - `languages-basic` - Basic language support
+    - `languages-diagnostics` - Error/warning squiggles
+    - `typescript` - TypeScript/JavaScript
+    - `json` - JSON support
+    - `markdown` - Markdown support
+    - `extensions` - Extension API
+    - `extension-host` - Extension runtime
+  </Accordion>
+  
+  <Accordion title="Platform Areas">
+    - `api` - Extension API
+    - `electron` - Electron shell
+    - `keybindings` - Keyboard shortcuts
+    - `themes` - Color themes
+    - `L10N` - Localization/translations
+    - `performance` - Performance issues
+    - `accessibility` - Accessibility
+  </Accordion>
+</AccordionGroup>
+
+### Status Labels
+
+<Tabs>
+  <Tab title="Needs Info">
+    **`info-needed`** - More information required from reporter
+    
+    <Warning>
+    Issues automatically close after 7 days if no response is provided.
+    </Warning>
+  </Tab>
+  
+  <Tab title="Needs Investigation">
+    **`needs-investigation`** - Requires deeper investigation
+    
+    Team needs to reproduce and diagnose the issue.
+  </Tab>
+  
+  <Tab title="Verified">
+    **`verified`** - Issue has been confirmed by the team
+    
+    Bug has been reproduced or feature request has been acknowledged.
+  </Tab>
+  
+  <Tab title="Milestone">
+    Assigned to a milestone (e.g., `January 2024`) - scheduled for a specific release
+  </Tab>
+</Tabs>
+
+### Priority Labels
+
+<AccordionGroup>
+  <Accordion title="Important">
+    **`important`** - High priority, should be addressed soon
+    
+    Issues affecting many users or core functionality.
+  </Accordion>
+  
+  <Accordion title="Help Wanted">
+    **`help-wanted`** - Team welcomes community contributions
+    
+    <Tip>
+    Great issues for external contributors to tackle!
+    </Tip>
+  </Accordion>
+  
+  <Accordion title="Good First Issue">
+    **`good-first-issue`** - Suitable for first-time contributors
+    
+    Relatively simple issues that are well-defined and don't require deep codebase knowledge.
+  </Accordion>
+</AccordionGroup>
+
+## Automated Issue Management
+
+VS Code uses GitHub Actions to help manage the large volume of issues:
+
+### Automated Actions
+
+<Tabs>
+  <Tab title="Info Needed Closure">
+    **Auto-closes** issues marked `info-needed` after 7 days with no response.
+    
+    ```
+    Issue closed due to no response to request for information.
+    Please reopen if you can provide the requested details.
+    ```
+  </Tab>
+  
+  <Tab title="Issue Locking">
+    **Auto-locks** issues 45 days after closure to prevent necroposting.
+    
+    If you encounter the same issue, file a new one referencing the old one.
+  </Tab>
+  
+  <Tab title="Feature Request Pipeline">
+    Implements the [feature request pipeline](https://github.com/microsoft/vscode/wiki/Issues-Triaging#managing-feature-requests):
+    - Collects votes and feedback
+    - Moves to appropriate stage
+    - Notifies when status changes
+  </Tab>
+  
+  <Tab title="Duplicate Detection">
+    Helps identify potential duplicates based on:
+    - Similar titles
+    - Similar content
+    - Same labels
+  </Tab>
+</Tabs>
+
+<Note>
+If you believe the bot made a mistake, open a new issue explaining the situation and referencing the affected issue.
+</Note>
+
+## Feature Request Pipeline
+
+Feature requests follow a specific process to ensure community input:
+
+<Steps>
+  <Step title="1. Under Discussion">
+    New feature request is opened and labeled `feature-request`.
+    
+    Community can:
+    - Vote with 👍 reactions
+    - Discuss use cases
+    - Propose alternatives
+  </Step>
+  
+  <Step title="2. Team Review">
+    After sufficient discussion, team reviews:
+    - Alignment with VS Code vision
+    - Feasibility
+    - Community interest
+    - Potential implementation approach
+  </Step>
+  
+  <Step title="3. Backlog or Planning">
+    If approved:
+    - Added to backlog
+    - May be assigned to a milestone
+    - Team or community can implement
+    
+    If not approved:
+    - Closed with explanation
+    - May suggest alternatives
+  </Step>
+  
+  <Step title="4. Implementation">
+    Once scheduled:
+    - Issue assigned to milestone
+    - Work begins (team or contributor)
+    - PR submitted and reviewed
+  </Step>
+  
+  <Step title="5. Shipped">
+    Feature ships in VS Code release:
+    - Issue closed and referenced in release notes
+    - Community notified
+  </Step>
+</Steps>
+
+<Tip>
+Upvote feature requests with 👍 reactions on the original post, not with comments. This helps the team gauge interest more accurately.
+</Tip>
+
+## How to Help with Triaging
+
+Community members can help with issue triaging:
+
+### Reproducing Issues
+
+<Accordion title="Verify Bug Reports">
+  Help confirm bugs by:
+  
+  1. **Following reproduction steps** in the issue
+  2. **Testing on your system** (note your OS/version)
+  3. **Commenting with results**:
+     ```
+     I can confirm this issue on:
+     - VS Code: 1.85.0
+     - OS: macOS 14.1
+     - Extensions: [list relevant extensions]
+     
+     [Additional details or observations]
+     ```
+  4. **Providing additional info** like screenshots or videos
+</Accordion>
+
+### Identifying Duplicates
+
+<Accordion title="Find Duplicate Issues">
+  Before filing an issue (or after you spot a new one):
+  
+  1. **Search existing issues** for similar problems
+  2. **Check closed issues** - might have been fixed or rejected
+  3. **Comment with links** if you find duplicates:
+     ```
+     This appears to be a duplicate of #12345
+     ```
+  4. **Don't close or label** - let maintainers confirm
+</Accordion>
+
+### Providing Additional Context
+
+<Accordion title="Add Helpful Information">
+  If you encounter the same issue:
+  
+  1. **Add your use case** - different perspectives help
+  2. **Share workarounds** if you've found any
+  3. **Provide code samples** that demonstrate the issue
+  4. **Note related issues** that might be connected
+  
+  <Warning>
+  Avoid "+1" comments. Use 👍 reactions instead.
+  </Warning>
+</Accordion>
+
+### Answering Questions
+
+<Accordion title="Help Other Users">
+  If you know the answer to someone's question:
+  
+  1. **Provide clear answers** with examples
+  2. **Link to relevant docs** or issues
+  3. **Suggest workarounds** if no direct solution exists
+  4. **Direct to Stack Overflow** for general questions
+  
+  <Tip>
+  Helping other users is one of the most valuable contributions you can make!
+  </Tip>
+</Accordion>
+
+## Issue Tracking Workflow
+
+### For Reporters
+
+What to expect when you file an issue:
+
+<Steps>
+  <Step title="Submission">
+    You submit an issue using the appropriate template.
+  </Step>
+  
+  <Step title="Bot Analysis">
+    Automated system:
+    - Checks for similar issues
+    - May request additional info
+    - Suggests related documentation
+  </Step>
+  
+  <Step title="Team Triage">
+    Team member reviews:
+    - Adds labels
+    - Asks clarifying questions
+    - Assigns to area owner
+  </Step>
+  
+  <Step title="Investigation">
+    If it's a bug:
+    - Team attempts to reproduce
+    - May request more details
+    - Identifies root cause
+  </Step>
+  
+  <Step title="Resolution">
+    Issue is resolved through:
+    - Fix in upcoming release
+    - Explanation (working as designed)
+    - Won't fix with reasoning
+  </Step>
+</Steps>
+
+<Note>
+Be patient - the team manages thousands of issues. Response times vary based on severity and impact.
+</Note>
+
+### For Contributors
+
+Looking for issues to work on?
+
+<Tabs>
+  <Tab title="Good First Issues">
+    Filter for `good-first-issue` label:
+    
+    [View Good First Issues](https://github.com/microsoft/vscode/labels/good-first-issue)
+    
+    These are:
+    - Well-defined
+    - Limited scope
+    - Don't require deep codebase knowledge
+  </Tab>
+  
+  <Tab title="Help Wanted">
+    Filter for `help-wanted` label:
+    
+    [View Help Wanted Issues](https://github.com/microsoft/vscode/labels/help-wanted)
+    
+    Team welcomes contributions on these issues.
+  </Tab>
+  
+  <Tab title="By Area">
+    Filter by area labels to find issues in your area of expertise:
+    
+    - [Editor Issues](https://github.com/microsoft/vscode/labels/editor)
+    - [Terminal Issues](https://github.com/microsoft/vscode/labels/workbench-integrated-terminal)
+    - [Debug Issues](https://github.com/microsoft/vscode/labels/workbench-debug)
+    - [Extension API](https://github.com/microsoft/vscode/labels/api)
+  </Tab>
+</Tabs>
+
+## Best Practices for Issue Reporters
+
+### Writing Effective Bug Reports
+
+<AccordionGroup>
+  <Accordion title="Use the Issue Template">
+    The template exists for a reason - it ensures you provide all necessary information:
+    - VS Code version
+    - Operating system
+    - Reproduction steps
+    - Expected vs actual behavior
+  </Accordion>
+  
+  <Accordion title="One Issue Per Report">
+    Don't combine multiple unrelated bugs or feature requests:
+    
+    ✅ Good: "File explorer crashes when renaming folders with special characters"
+    
+    ❌ Bad: "File explorer crashes, terminal font is wrong, and I'd like a new theme"
+  </Accordion>
+  
+  <Accordion title="Search First">
+    Before creating a new issue:
+    - Search open issues
+    - Check closed issues
+    - Review [popular feature requests](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
+  </Accordion>
+  
+  <Accordion title="Provide Minimal Reproduction">
+    Simplify the reproduction case:
+    
+    ```typescript
+    // Good - minimal example
+    const x: string = 123; // Type error not shown
+    
+    // Bad - complex example with irrelevant code
+    [100 lines of unrelated code]
+    const x: string = 123; // Type error not shown
+    [100 more lines]
+    ```
+  </Accordion>
+  
+  <Accordion title="Include Visual Evidence">
+    For UI issues, include:
+    - Screenshots showing the problem
+    - GIFs/videos demonstrating the issue
+    - Before/after comparisons
+    
+    <Tip>
+    Use built-in screen recording (Windows: Win+G, macOS: Cmd+Shift+5)
+    </Tip>
+  </Accordion>
+</AccordionGroup>
+
+### Responding to Triage
+
+When team members request information:
+
+<Steps>
+  <Step title="Respond Promptly">
+    Provide requested information within 7 days to prevent auto-closure.
+  </Step>
+  
+  <Step title="Be Thorough">
+    Answer all questions in the request, not just some.
+  </Step>
+  
+  <Step title="Format Clearly">
+    Use code blocks, screenshots, and clear explanations.
+  </Step>
+  
+  <Step title="Stay Subscribed">
+    Don't unsubscribe from your own issues - you may need to provide more info.
+  </Step>
+</Steps>
+
+## Understanding Issue Closure
+
+Issues may be closed for various reasons:
+
+<Tabs>
+  <Tab title="Fixed">
+    Issue resolved in a merged PR.
+    
+    Check the linked PR and milestone to see when the fix will ship.
+  </Tab>
+  
+  <Tab title="Duplicate">
+    Another issue already tracks this.
+    
+    Follow the linked duplicate for updates.
+  </Tab>
+  
+  <Tab title="Working as Designed">
+    Behavior is intentional.
+    
+    Explanation provided for why it works this way.
+  </Tab>
+  
+  <Tab title="Won't Fix">
+    Team decided not to implement.
+    
+    Reasoning provided (conflicts with vision, too complex, etc.).
+  </Tab>
+  
+  <Tab title="No Response">
+    Reporter didn't provide requested information.
+    
+    Can be reopened if information is provided later.
+  </Tab>
+  
+  <Tab title="Caused by Extension">
+    Issue is with an extension, not VS Code core.
+    
+    File issue on the extension's repository instead.
+  </Tab>
+</Tabs>
+
+<Note>
+Closed doesn't mean rejected. Many issues are closed as duplicates of other open issues, or are closed when fixed and scheduled for a future release.
+</Note>
+
+## Resources
+
+<CardGroup cols={2}>
+  <Card title="Issue Tracking Wiki" icon="book" href="https://github.com/microsoft/vscode/wiki/Issue-Tracking">
+    Detailed issue workflow
+  </Card>
+  <Card title="Feedback Channels" icon="comments" href="https://github.com/microsoft/vscode/wiki/Feedback-Channels">
+    Where to provide feedback
+  </Card>
+  <Card title="Related Projects" icon="diagram-project" href="https://github.com/microsoft/vscode/wiki/Related-Projects">
+    VS Code ecosystem repos
+  </Card>
+  <Card title="How to Contribute" icon="hand-wave" href="/contributing/how-to-contribute">
+    Getting started guide
+  </Card>
+</CardGroup>
+
+## Questions?
+
+If you have questions about issue triaging:
+
+- Review the [Issue Tracking wiki](https://github.com/microsoft/vscode/wiki/Issue-Tracking)
+- Ask on [Stack Overflow](https://stackoverflow.com/questions/tagged/visual-studio-code)
+- Join the [VS Code Dev Community](https://aka.ms/vscode-dev-community)
+
+<Tip>
+Helping with issue triaging is a valuable way to contribute to VS Code, even if you don't write code. Every issue that's properly labeled, confirmed, or closed as a duplicate helps the team focus on building new features and fixing bugs.
+</Tip>

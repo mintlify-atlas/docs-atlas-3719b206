@@ -1,0 +1,550 @@
+---
+title: Telemetry Service
+description: Guide to VS Code's Telemetry Service for collecting usage and diagnostic data
+---
+
+# Telemetry Service
+
+The Telemetry Service (`ITelemetryService`) is a platform service that provides APIs for collecting telemetry data in Visual Studio Code. It respects user privacy settings and provides type-safe telemetry event logging with GDPR compliance.
+
+## Service Overview
+
+The Telemetry Service is defined in `src/vs/platform/telemetry/common/telemetry.ts:9` and manages the collection and transmission of telemetry events.
+
+### Service Identifier
+
+```typescript
+export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
+```
+
+## Dependency Injection
+
+```typescript
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+
+export class MyFeature {
+  constructor(
+    @ITelemetryService private readonly telemetryService: ITelemetryService
+  ) {}
+
+  async performAction(): Promise<void> {
+    // Log telemetry event
+    this.telemetryService.publicLog2('myFeature/actionPerformed', {
+      duration: 1500,
+      success: true
+    });
+  }
+}
+```
+
+## Service Properties
+
+### Telemetry Level
+
+```typescript
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+
+const level = telemetryService.telemetryLevel;
+
+switch (level) {
+  case TelemetryLevel.NONE:
+    console.log('Telemetry is disabled');
+    break;
+  case TelemetryLevel.CRASH:
+    console.log('Only crash reports');
+    break;
+  case TelemetryLevel.ERROR:
+    console.log('Crash and error reports');
+    break;
+  case TelemetryLevel.USAGE:
+    console.log('Full telemetry enabled');
+    break;
+}
+
+// Check if specific level is enabled
+import { telemetryLevelEnabled } from 'vs/platform/telemetry/common/telemetry';
+
+if (telemetryLevelEnabled(telemetryService, TelemetryLevel.USAGE)) {
+  // Safe to send usage telemetry
+}
+```
+
+<Accordion title="TelemetryLevel Enum">
+```typescript
+export const enum TelemetryLevel {
+  NONE = 0,    // No telemetry
+  CRASH = 1,   // Crash reports only
+  ERROR = 2,   // Error and crash reports
+  USAGE = 3    // All telemetry including usage
+}
+```
+</Accordion>
+
+### Session Information
+
+```typescript
+// Unique session identifier
+const sessionId = telemetryService.sessionId;
+
+// Machine identifier (hashed)
+const machineId = telemetryService.machineId;
+
+// Software Quality Metrics ID
+const sqmId = telemetryService.sqmId;
+
+// Development device ID
+const devDeviceId = telemetryService.devDeviceId;
+
+// First session date
+const firstSession = telemetryService.firstSessionDate;
+
+// Microsoft internal user
+const isMsftInternal = telemetryService.msftInternal;
+
+// Error telemetry enabled
+const sendsErrors = telemetryService.sendErrorTelemetry;
+```
+
+## Logging Telemetry Events
+
+### publicLog2() - Type-Safe Telemetry (Recommended)
+
+<ParamField path="eventName" type="string" required>
+  The name of the telemetry event
+</ParamField>
+
+<ParamField path="data" type="StrictPropertyCheck<T, E>" optional>
+  The event data with GDPR annotations
+</ParamField>
+
+```typescript
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+
+// Define event type with GDPR classification
+type FeatureUsedEvent = {
+  featureName: string;
+  duration: number;
+  success: boolean;
+};
+
+type FeatureUsedClassification = {
+  featureName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+  duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+  success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+};
+
+// Log type-safe event
+telemetryService.publicLog2<FeatureUsedEvent, FeatureUsedClassification>(
+  'myFeature/used',
+  {
+    featureName: 'autoComplete',
+    duration: 250,
+    success: true
+  }
+);
+```
+
+<Info>
+  Use `publicLog2` for all new telemetry. It provides compile-time type checking and enforces GDPR classification annotations.
+</Info>
+
+### publicLog() - Legacy Telemetry (Deprecated)
+
+```typescript
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+
+// Legacy API (avoid in new code)
+telemetryService.publicLog('myFeature/action', {
+  from: 'commandPalette',
+  target: 'editor',
+  customProperty: 'value'
+});
+```
+
+<Note>
+  `publicLog()` is deprecated. Use `publicLog2()` with proper GDPR annotations for new telemetry.
+</Note>
+
+## Error Telemetry
+
+### publicLogError2() - Log Errors (Recommended)
+
+```typescript
+type ErrorEvent = {
+  errorCode: string;
+  errorMessage: string;
+  stackTrace?: string;
+};
+
+type ErrorClassification = {
+  errorCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+  errorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth' };
+  stackTrace: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth' };
+};
+
+try {
+  await riskyOperation();
+} catch (error) {
+  // Log error telemetry
+  telemetryService.publicLogError2<ErrorEvent, ErrorClassification>(
+    'myFeature/error',
+    {
+      errorCode: 'OPERATION_FAILED',
+      errorMessage: error.message,
+      stackTrace: error.stack
+    }
+  );
+}
+```
+
+### publicLogError() - Legacy Error Logging (Deprecated)
+
+```typescript
+// Legacy error logging (avoid in new code)
+telemetryService.publicLogError('myFeature/error', {
+  errorMessage: 'Something went wrong'
+});
+```
+
+<Note>
+  Error telemetry respects the `sendErrorTelemetry` property. If `false`, error events are not sent.
+</Note>
+
+## GDPR Compliance
+
+### Data Classifications
+
+All telemetry must be classified according to GDPR requirements:
+
+<Accordion title="Classification Types">
+```typescript
+// SystemMetaData: Non-identifiable system information
+{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }
+
+// CallstackOrException: Error messages and stack traces
+{ classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth' }
+
+// CustomerContent: User-generated content (avoid when possible)
+{ classification: 'CustomerContent'; purpose: 'FeatureInsight' }
+
+// PublicNonPersonalData: Public data
+{ classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' }
+```
+</Accordion>
+
+<Accordion title="Purpose Types">
+```typescript
+// FeatureInsight: Understanding feature usage
+{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }
+
+// PerformanceAndHealth: Performance and reliability metrics
+{ classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' }
+
+// BusinessInsight: Business metrics
+{ classification: 'SystemMetaData'; purpose: 'BusinessInsight' }
+```
+</Accordion>
+
+### Complete Event Example
+
+```typescript
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import type { IGDPRProperty, ClassifiedEvent, OmitMetadata } from 'vs/platform/telemetry/common/gdprTypings';
+
+type CommandExecutedEvent = {
+  commandId: string;
+  duration: number;
+  source: string;
+  succeeded: boolean;
+  errorCode?: string;
+};
+
+type CommandExecutedClassification = {
+  commandId: {
+    classification: 'SystemMetaData';
+    purpose: 'FeatureInsight';
+    comment: 'The identifier of the command that was executed';
+  };
+  duration: {
+    classification: 'SystemMetaData';
+    purpose: 'PerformanceAndHealth';
+    comment: 'How long the command took to execute in milliseconds';
+  };
+  source: {
+    classification: 'SystemMetaData';
+    purpose: 'FeatureInsight';
+    comment: 'Where the command was invoked from';
+  };
+  succeeded: {
+    classification: 'SystemMetaData';
+    purpose: 'FeatureInsight';
+    comment: 'Whether the command succeeded';
+  };
+  errorCode: {
+    classification: 'SystemMetaData';
+    purpose: 'PerformanceAndHealth';
+    comment: 'Error code if the command failed';
+  };
+};
+
+export class CommandTelemetry {
+  constructor(
+    @ITelemetryService private telemetryService: ITelemetryService
+  ) {}
+
+  logCommandExecution(data: CommandExecutedEvent): void {
+    this.telemetryService.publicLog2<CommandExecutedEvent, CommandExecutedClassification>(
+      'workbench.command.executed',
+      data
+    );
+  }
+}
+```
+
+## Experiment Properties
+
+```typescript
+// Set experiment property
+telemetryService.setExperimentProperty('myExperiment', 'variantA');
+
+// This property will be included in all subsequent telemetry events
+telemetryService.publicLog2('feature/used', {
+  action: 'click'
+});
+// Event will include: { action: 'click', myExperiment: 'variantA' }
+```
+
+## Common Use Cases
+
+### Feature Usage Tracking
+
+```typescript
+export class FeatureTracker {
+  constructor(
+    @ITelemetryService private telemetryService: ITelemetryService
+  ) {}
+
+  trackFeatureUsage(featureName: string, metadata: Record<string, string | number>): void {
+    // Only send if telemetry is enabled
+    if (telemetryLevelEnabled(this.telemetryService, TelemetryLevel.USAGE)) {
+      this.telemetryService.publicLog2(
+        `feature/${featureName}`,
+        metadata
+      );
+    }
+  }
+
+  trackFeatureStart(featureName: string): () => void {
+    const startTime = Date.now();
+
+    // Return function to track completion
+    return () => {
+      const duration = Date.now() - startTime;
+      this.trackFeatureUsage(featureName, { duration });
+    };
+  }
+}
+
+// Usage
+const complete = tracker.trackFeatureStart('codeCompletion');
+try {
+  await showCodeCompletion();
+  complete();
+} catch (error) {
+  // Will still log duration
+  complete();
+  throw error;
+}
+```
+
+### Performance Monitoring
+
+```typescript
+export class PerformanceMonitor {
+  constructor(
+    @ITelemetryService private telemetryService: ITelemetryService
+  ) {}
+
+  async measureAsync<T>(
+    operationName: string,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    const startTime = Date.now();
+    let success = false;
+    let errorCode: string | undefined;
+
+    try {
+      const result = await operation();
+      success = true;
+      return result;
+    } catch (error) {
+      errorCode = error.code || 'UNKNOWN';
+      throw error;
+    } finally {
+      const duration = Date.now() - startTime;
+
+      this.telemetryService.publicLog2(
+        `performance/${operationName}`,
+        {
+          duration,
+          success,
+          errorCode
+        }
+      );
+    }
+  }
+}
+
+// Usage
+const result = await performanceMonitor.measureAsync(
+  'fileSearch',
+  () => searchFiles(query)
+);
+```
+
+### Error Reporting
+
+```typescript
+export class ErrorReporter {
+  constructor(
+    @ITelemetryService private telemetryService: ITelemetryService
+  ) {}
+
+  reportError(
+    source: string,
+    error: Error,
+    context?: Record<string, string>
+  ): void {
+    // Only send if error telemetry is enabled
+    if (this.telemetryService.sendErrorTelemetry) {
+      this.telemetryService.publicLogError2(
+        `${source}/error`,
+        {
+          errorName: error.name,
+          errorMessage: error.message,
+          stackTrace: error.stack,
+          ...context
+        }
+      );
+    }
+  }
+
+  reportUnhandledError(error: Error): void {
+    this.reportError('unhandled', error, {
+      fatal: 'true'
+    });
+  }
+}
+```
+
+### User Action Tracking
+
+```typescript
+export class ActionTracker {
+  constructor(
+    @ITelemetryService private telemetryService: ITelemetryService
+  ) {}
+
+  trackAction(action: string, source: string, metadata?: Record<string, any>): void {
+    this.telemetryService.publicLog2(
+      'user/action',
+      {
+        action,
+        source,
+        timestamp: Date.now(),
+        ...metadata
+      }
+    );
+  }
+
+  trackButtonClick(buttonId: string, context: string): void {
+    this.trackAction('buttonClick', context, { buttonId });
+  }
+
+  trackMenuAction(menuId: string, actionId: string): void {
+    this.trackAction('menuAction', 'menu', { menuId, actionId });
+  }
+}
+```
+
+## Custom Endpoint Telemetry
+
+```typescript
+import {
+  ICustomEndpointTelemetryService,
+  ITelemetryEndpoint
+} from 'vs/platform/telemetry/common/telemetry';
+
+export class CustomTelemetry {
+  constructor(
+    @ICustomEndpointTelemetryService
+    private customTelemetryService: ICustomEndpointTelemetryService
+  ) {}
+
+  sendToCustomEndpoint(): void {
+    const endpoint: ITelemetryEndpoint = {
+      id: 'myCustomEndpoint',
+      aiKey: 'your-application-insights-key',
+      sendErrorTelemetry: true
+    };
+
+    this.customTelemetryService.publicLog(
+      endpoint,
+      'custom/event',
+      { data: 'value' }
+    );
+  }
+}
+```
+
+## Best Practices
+
+<Note>
+  **Use publicLog2**: Always use `publicLog2()` with proper GDPR classifications. Never use the deprecated `publicLog()`.
+</Note>
+
+<Note>
+  **Check Telemetry Level**: Before collecting usage telemetry, check if the appropriate level is enabled with `telemetryLevelEnabled()`.
+</Note>
+
+<Note>
+  **No Personal Data**: Never send personally identifiable information (PII) in telemetry. Use classifications carefully.
+</Note>
+
+<Note>
+  **Event Naming**: Use hierarchical event names with forward slashes (e.g., `feature/action`, `editor/completion`).
+</Note>
+
+<Note>
+  **Error Context**: Include enough context in error telemetry to diagnose issues, but avoid sensitive data.
+</Note>
+
+<Note>
+  **Keep Events Small**: Limit the amount of data per event. For large datasets, consider aggregation or sampling.
+</Note>
+
+## Configuration Settings
+
+Users control telemetry through these settings:
+
+```json
+{
+  // Telemetry level
+  "telemetry.telemetryLevel": "all",  // "off", "crash", "error", "all"
+  
+  // Crash reporter (separate setting)
+  "telemetry.enableCrashReporter": true
+}
+```
+
+## Related Services
+
+- **ILogService** - For diagnostic logging (not telemetry)
+- **IConfigurationService** - For reading telemetry settings
+- **IEnvironmentService** - For determining telemetry endpoints
+
+## See Also
+
+- [GDPR Compliance](/contributing/gdpr)
+- [Telemetry Configuration](/api/configuration/telemetry)
+- [Privacy Statement](https://privacy.microsoft.com/privacystatement)

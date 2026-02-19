@@ -1,122 +1,148 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Visual Studio Code",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#007ACC",
+    "light": "#2D9EE7",
+    "dark": "#005A9E"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/microsoft/vscode"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/microsoft/vscode"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Getting Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "installation"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/architecture",
+              "concepts/layered-architecture",
+              "concepts/dependency-injection",
+              "concepts/contribution-model",
+              "concepts/extension-system"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Development",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "development/building-from-source",
+              "development/development-workflow",
+              "development/debugging",
+              "development/running-tests"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Architecture",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "architecture/overview",
+              "architecture/base-layer",
+              "architecture/platform-layer",
+              "architecture/editor-layer",
+              "architecture/workbench-layer",
+              "architecture/electron-main-process"
+            ]
+          },
+          {
+            "group": "Extensions",
+            "pages": [
+              "extensions/overview",
+              "extensions/built-in-extensions",
+              "extensions/extension-api",
+              "extensions/creating-extensions",
+              "extensions/language-features"
+            ]
+          },
+          {
+            "group": "Workbench",
+            "pages": [
+              "workbench/overview",
+              "workbench/services",
+              "workbench/contributions",
+              "workbench/views-and-panels"
+            ]
+          },
+          {
+            "group": "Contributing",
+            "pages": [
+              "contributing/how-to-contribute",
+              "contributing/coding-guidelines",
+              "contributing/pull-requests",
+              "contributing/issue-triaging"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Extension API",
             "pages": [
-              "api-reference/introduction"
+              "api/vscode-api-overview",
+              "api/commands",
+              "api/text-editor",
+              "api/workspace",
+              "api/languages",
+              "api/debugging",
+              "api/authentication",
+              "api/webview"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Core Services",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/services/configuration-service",
+              "api/services/file-service",
+              "api/services/editor-service",
+              "api/services/telemetry-service",
+              "api/services/lifecycle-service"
+            ]
+          },
+          {
+            "group": "Platform APIs",
+            "pages": [
+              "api/platform/registry",
+              "api/platform/instantiation",
+              "api/platform/actions",
+              "api/platform/keybindings"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI Tool",
+        "groups": [
+          {
+            "group": "CLI Reference",
+            "pages": [
+              "cli/overview",
+              "cli/installation",
+              "cli/commands",
+              "cli/tunnel",
+              "cli/configuration"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

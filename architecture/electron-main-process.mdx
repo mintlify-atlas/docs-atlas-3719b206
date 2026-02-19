@@ -1,0 +1,641 @@
+---
+title: Electron Main Process
+description: Electron main process implementation and native integration
+---
+
+## Overview
+
+The Electron Main Process (`src/vs/code/electron-main/`) is the entry point for VS Code's desktop application. It manages application lifecycle, creates windows, handles native OS integration, and coordinates between multiple renderer processes.
+
+## Architecture
+
+```
+src/vs/code/
+├── electron-main/        # Main process code
+│   ├── main.ts           # Entry point
+│   └── app.ts            # CodeApplication class
+├── electron-browser/    # Renderer process utilities
+├── electron-utility/    # Utility process code
+└── node/                # Node.js utilities
+```
+
+## Main Process Entry Point
+
+<Accordion title="main.ts - Application Bootstrap">
+Located in: `src/vs/code/electron-main/main.ts`
+
+```typescript
+import { app } from 'electron';
+import { CodeMain } from './main';
+
+/**
+ * The main VS Code entry point.
+ * 
+ * Note: This class can exist more than once when VS Code is already
+ * running and a second instance is started from the command line.
+ */
+class CodeMain {
+	main(): void {
+		try {
+			this.startup();
+		} catch (error) {
+			console.error(error.message);
+			app.exit(1);
+		}
+	}
+
+	private async startup(): Promise<void> {
+		// 1. Parse command line arguments
+		const args = parseMainProcessArgv(process.argv);
+
+		// 2. Setup services (logging, configuration, etc.)
+		const services = await this.initServices(args);
+
+		// 3. Create and start the application
+		const instantiationService = this.createInstantiationService(services);
+		const app = instantiationService.createInstance(CodeApplication);
+		await app.startup();
+	}
+
+	private async initServices(args: NativeParsedArgs): Promise<ServiceCollection> {
+		const services = new ServiceCollection();
+
+		// Core services
+		const environmentMainService = new EnvironmentMainService(args);
+		services.set(IEnvironmentMainService, environmentMainService);
+
+		const logService = this.createLogService(environmentMainService);
+		services.set(ILogService, logService);
+
+		const configService = new ConfigurationService(/* ... */);
+		services.set(IConfigurationService, configService);
+
+		const stateService = new StateService(/* ... */);
+		services.set(IStateService, stateService);
+
+		// File service
+		const fileService = new FileService(logService);
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(logService));
+		services.set(IFileService, fileService);
+
+		return services;
+	}
+}
+
+// Start the application
+const code = new CodeMain();
+code.main();
+```
+</Accordion>
+
+## CodeApplication Class
+
+<Accordion title="app.ts - Main Application Logic">
+Located in: `src/vs/code/electron-main/app.ts`
+
+```typescript
+import { app, BrowserWindow } from 'electron';
+import { Disposable } from 'vs/base/common/lifecycle';
+
+/**
+ * The main VS Code application. There will only ever be one instance,
+ * even if the user starts many instances (e.g. from the command line).
+ */
+export class CodeApplication extends Disposable {
+	private windowsMainService: IWindowsMainService | undefined;
+
+	constructor(
+		@IInstantiationService private readonly mainInstantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStateService private readonly stateService: IStateService
+	) {
+		super();
+	}
+
+	async startup(): Promise<void> {
+		this.logService.info('Starting VS Code');
+
+		// 1. Register IPC channels
+		this.registerListeners();
+
+		// 2. Setup protocol handlers
+		await this.initProtocolHandlers();
+
+		// 3. Create services
+		await this.initServices();
+
+		// 4. Open windows
+		await this.openFirstWindow();
+	}
+
+	private async initServices(): Promise<void> {
+		// Windows management service
+		this.windowsMainService = this.mainInstantiationService.createInstance(
+			WindowsMainService
+		);
+
+		// Backup service
+		const backupMainService = this.mainInstantiationService.createInstance(
+			BackupMainService
+		);
+
+		// Extension management
+		const extensionManagementService = this.mainInstantiationService.createInstance(
+			ExtensionManagementService
+		);
+
+		// Update service (platform-specific)
+		let updateService: IUpdateService;
+		if (isMacintosh) {
+			updateService = new DarwinUpdateService();
+		} else if (isWindows) {
+			updateService = new Win32UpdateService();
+		} else if (isLinux) {
+			updateService = isLinuxSnap
+				? new SnapUpdateService()
+				: new LinuxUpdateService();
+		}
+	}
+
+	private async openFirstWindow(): Promise<void> {
+		const context = !!process.env['VSCODE_CLI']
+			? OpenContext.CLI
+			: OpenContext.DESKTOP;
+
+		// Open window based on command line args or restore previous session
+		const windowConfig = this.getWindowOpenableFromArgs();
+		await this.windowsMainService!.open({
+			context,
+			windowsToOpen: windowConfig,
+			initialStartup: true
+		});
+	}
+}
+```
+</Accordion>
+
+## Process Architecture
+
+VS Code uses multiple Electron processes:
+
+<Accordion title="Multi-Process Model">
+```
+┌─────────────────────────────────────────────────┐
+│              MAIN PROCESS                              │
+│         (electron-main/main.ts)                       │
+│                                                        │
+│  - Application lifecycle                              │
+│  - Window management (IWindowsMainService)            │
+│  - Native menus and dialogs                           │
+│  - Auto-update                                        │
+│  - Protocol handlers                                  │
+│  - System integration                                 │
+└──────────────────────┬──────────────────────────┘
+                        │ IPC
+        ┌───────────────┼─────────────────┐
+        │               │                 │
+        ▼               ▼                 ▼
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│   RENDERER   │ │  EXTENSION  │ │   SHARED    │
+│   PROCESS    │ │    HOST     │ │   PROCESS   │
+│ (Workbench)  │ │  PROCESS    │ │             │
+│              │ │             │ │  - Storage  │
+│ One per      │ │ Runs        │ │  - Updates  │
+│ window       │ │ extensions  │ │  - Telemetry│
+└──────────────┘ └──────────────┘ └──────────────┘
+```
+</Accordion>
+
+## Window Management
+
+<Accordion title="IWindowsMainService - Window Lifecycle">
+Located in: `src/vs/platform/windows/electron-main/windows.ts`
+
+```typescript
+import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { BrowserWindow } from 'electron';
+
+export interface IWindowsMainService {
+	// Open windows
+	open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
+	openEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<ICodeWindow[]>;
+	openExtensionDevelopmentHostWindow(args: NativeParsedArgs): Promise<ICodeWindow[]>;
+
+	// Window access
+	getWindows(): ICodeWindow[];
+	getLastActiveWindow(): ICodeWindow | undefined;
+
+	// Window state
+	sendToFocused(channel: string, ...args: any[]): void;
+	sendToAll(channel: string, ...args: any[]): void;
+
+	// Events
+	onDidChangeWindowsCount: Event<IWindowsCountChangedEvent>;
+	onDidOpenWindow: Event<ICodeWindow>;
+	onDidDestroyWindow: Event<ICodeWindow>;
+}
+```
+</Accordion>
+
+<Accordion title="Window Creation">
+```typescript
+import { BrowserWindow, BrowserWindowConstructorOptions } from 'electron';
+
+class WindowsMainService implements IWindowsMainService {
+	private createBrowserWindow(options: ICreateBrowserWindowOptions): BrowserWindow {
+		const windowConfig: BrowserWindowConstructorOptions = {
+			// Window dimensions
+			width: options.width || 1024,
+			height: options.height || 768,
+			minWidth: 400,
+			minHeight: 270,
+
+			// Window chrome
+			show: false, // Show manually after ready-to-show
+			title: product.nameLong,
+			backgroundColor: this.getBackgroundColor(),
+
+			// Web preferences
+			webPreferences: {
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
+				additionalArguments: this.getAdditionalArguments(),
+				contextIsolation: true,
+				nodeIntegration: false,
+				sandbox: true,
+				webviewTag: false
+			}
+		};
+
+		const window = new BrowserWindow(windowConfig);
+
+		// Load workbench HTML
+		window.loadURL(
+			FileAccess.asBrowserUri('vs/code/electron-sandbox/workbench/workbench.html').toString(true)
+		);
+
+		// Show window when ready
+		window.once('ready-to-show', () => {
+			window.show();
+		});
+
+		return window;
+	}
+}
+```
+</Accordion>
+
+## IPC Communication
+
+<Accordion title="IPC Channels">
+The main process communicates with renderer processes via IPC:
+
+```typescript
+import { ipcMain, IpcMainEvent } from 'electron';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
+
+// Register IPC handlers in main process
+class IPCHandlers {
+	registerHandlers(): void {
+		// Handle synchronous IPC
+		ipcMain.on('vscode:fetchShellEnv', (event: IpcMainEvent) => {
+			const shellEnv = this.getShellEnvironment();
+			event.returnValue = shellEnv;
+		});
+
+		// Handle asynchronous IPC
+		ipcMain.handle('vscode:readFile', async (event: IpcMainEvent, path: string) => {
+			const content = await this.fileService.readFile(URI.file(path));
+			return content.value.toString();
+		});
+
+		// Validated IPC (with schema validation)
+		validatedIpcMain.on('vscode:windowClose', (event: IpcMainEvent, windowId: number) => {
+			const window = this.getWindowById(windowId);
+			window?.close();
+		});
+	}
+
+	// Send messages to renderer
+	sendToRenderer(windowId: number, channel: string, data: any): void {
+		const window = BrowserWindow.fromId(windowId);
+		window?.webContents.send(channel, data);
+	}
+}
+```
+
+In renderer process:
+
+```typescript
+import { ipcRenderer } from 'electron';
+
+// Send to main process
+const shellEnv = ipcRenderer.sendSync('vscode:fetchShellEnv');
+
+// Async communication
+const content = await ipcRenderer.invoke('vscode:readFile', '/path/to/file');
+
+// Listen for messages from main
+ipcRenderer.on('vscode:someEvent', (event, data) => {
+	console.log('Received from main:', data);
+});
+```
+</Accordion>
+
+## Native Integration
+
+<Tabs>
+  <Tab title="Native Menus">
+    ```typescript
+    import { Menu, MenuItem } from 'electron';
+    import { IMenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
+
+    export class MenubarMainService implements IMenubarMainService {
+        updateMenubar(windowId: number, menus: IMenubarData): void {
+            const menu = Menu.buildFromTemplate([
+                {
+                    label: 'File',
+                    submenu: [
+                        {
+                            label: 'New File',
+                            accelerator: 'CmdOrCtrl+N',
+                            click: () => this.onNewFile(windowId)
+                        },
+                        {
+                            label: 'Open File',
+                            accelerator: 'CmdOrCtrl+O',
+                            click: () => this.onOpenFile(windowId)
+                        },
+                        { type: 'separator' },
+                        {
+                            label: 'Exit',
+                            role: 'quit'
+                        }
+                    ]
+                }
+            ]);
+
+            if (isMacintosh) {
+                Menu.setApplicationMenu(menu);
+            } else {
+                const window = BrowserWindow.fromId(windowId);
+                window?.setMenu(menu);
+            }
+        }
+    }
+    ```
+  </Tab>
+  <Tab title="Native Dialogs">
+    ```typescript
+    import { dialog, BrowserWindow, OpenDialogOptions } from 'electron';
+    import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
+
+    export class DialogMainService implements IDialogMainService {
+        async showOpenDialog(
+            options: OpenDialogOptions,
+            window?: BrowserWindow
+        ): Promise<string[] | undefined> {
+            const result = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow()!, {
+                title: options.title,
+                defaultPath: options.defaultPath,
+                buttonLabel: options.buttonLabel,
+                filters: options.filters,
+                properties: ['openFile', 'multiSelections']
+            });
+
+            if (result.canceled) {
+                return undefined;
+            }
+
+            return result.filePaths;
+        }
+
+        async showSaveDialog(
+            options: SaveDialogOptions,
+            window?: BrowserWindow
+        ): Promise<string | undefined> {
+            const result = await dialog.showSaveDialog(window || BrowserWindow.getFocusedWindow()!, options);
+            return result.canceled ? undefined : result.filePath;
+        }
+    }
+    ```
+  </Tab>
+  <Tab title="System Tray">
+    ```typescript
+    import { Tray, Menu, nativeImage } from 'electron';
+
+    class TrayService {
+        private tray: Tray | undefined;
+
+        createTray(): void {
+            const icon = nativeImage.createFromPath('path/to/icon.png');
+            this.tray = new Tray(icon);
+
+            const contextMenu = Menu.buildFromTemplate([
+                { label: 'Show VS Code', click: () => this.showWindow() },
+                { type: 'separator' },
+                { label: 'Quit', click: () => app.quit() }
+            ]);
+
+            this.tray.setContextMenu(contextMenu);
+            this.tray.setToolTip('Visual Studio Code');
+
+            this.tray.on('click', () => {
+                this.showWindow();
+            });
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Lifecycle Management
+
+<Accordion title="Application Lifecycle">
+```typescript
+import { app, BrowserWindow } from 'electron';
+import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+
+export class LifecycleMainService implements ILifecycleMainService {
+	private phase = LifecycleMainPhase.Starting;
+
+	private readonly _onBeforeShutdown = new Emitter<void>();
+	readonly onBeforeShutdown = this._onBeforeShutdown.event;
+
+	registerListeners(): void {
+		// Prevent window close until workbench state is saved
+		app.on('before-quit', async (event) => {
+			if (this.phase < LifecycleMainPhase.AfterWindowClose) {
+				event.preventDefault();
+				await this.handleShutdown();
+				app.quit();
+			}
+		});
+
+		// Handle all windows closed
+		app.on('window-all-closed', () => {
+			if (!isMacintosh) {
+				app.quit();
+			}
+		});
+
+		// Handle activation (macOS)
+		app.on('activate', async () => {
+			if (BrowserWindow.getAllWindows().length === 0) {
+				await this.openFirstWindow();
+			}
+		});
+	}
+
+	private async handleShutdown(): Promise<void> {
+		this._onBeforeShutdown.fire();
+
+		// Give windows time to save state
+		await this.waitForWindowsToClose();
+
+		this.phase = LifecycleMainPhase.AfterWindowClose;
+	}
+}
+```
+</Accordion>
+
+## Security
+
+<Accordion title="Sandbox and Context Isolation">
+VS Code uses Electron's security best practices:
+
+```typescript
+const windowConfig: BrowserWindowConstructorOptions = {
+	webPreferences: {
+		// Context isolation: Separate contexts for preload and page
+		contextIsolation: true,
+
+		// No Node.js in renderer
+		nodeIntegration: false,
+
+		// Sandbox renderer process
+		sandbox: true,
+
+		// Disable webview tag
+		webviewTag: false,
+
+		// Disable remote module
+		enableRemoteModule: false,
+
+		// Preload script for safe IPC bridge
+		preload: path.join(__dirname, 'preload.js')
+	}
+};
+```
+
+Preload script provides safe API bridge:
+
+```typescript
+// preload.ts - runs in isolated context
+import { contextBridge, ipcRenderer } from 'electron';
+
+// Expose safe API to renderer
+contextBridge.exposeInMainWorld('vscode', {
+	// Only expose specific, validated IPC methods
+	send: (channel: string, data: any) => {
+		// Validate channel
+		if (allowedChannels.includes(channel)) {
+			ipcRenderer.send(channel, data);
+		}
+	},
+
+	on: (channel: string, callback: Function) => {
+		if (allowedChannels.includes(channel)) {
+			ipcRenderer.on(channel, (event, ...args) => callback(...args));
+		}
+	}
+});
+```
+</Accordion>
+
+## Auto-Update
+
+```typescript
+import { IUpdateService } from 'vs/platform/update/common/update';
+import { autoUpdater } from 'electron-updater';
+
+export class Win32UpdateService implements IUpdateService {
+	private readonly _onStateChange = new Emitter<State>();
+	readonly onStateChange = this._onStateChange.event;
+
+	constructor() {
+		autoUpdater.on('update-available', () => {
+			this.setState(State.AvailableForDownload);
+		});
+
+		autoUpdater.on('update-downloaded', () => {
+			this.setState(State.Downloaded);
+		});
+
+		autoUpdater.on('error', (error) => {
+			this.setState(State.Idle(UpdateType.Archive));
+		});
+	}
+
+	async checkForUpdates(): Promise<void> {
+		this.setState(State.CheckingForUpdates);
+		await autoUpdater.checkForUpdates();
+	}
+
+	async downloadUpdate(): Promise<void> {
+		await autoUpdater.downloadUpdate();
+	}
+
+	async applyUpdate(): Promise<void> {
+		autoUpdater.quitAndInstall();
+	}
+}
+```
+
+## Protocol Handlers
+
+```typescript
+import { protocol } from 'electron';
+import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
+
+export class ProtocolMainService implements IProtocolMainService {
+	registerProtocols(): void {
+		// Register vscode:// protocol
+		protocol.registerFileProtocol('vscode-file', (request, callback) => {
+			const url = request.url.substr('vscode-file://'.length);
+			const path = this.resolveVSCodePath(url);
+			callback({ path });
+		});
+
+		// Handle custom protocol for extensions
+		protocol.registerHttpProtocol('vscode-extension', (request, callback) => {
+			const extensionPath = this.resolveExtensionPath(request.url);
+			callback({ url: extensionPath });
+		});
+	}
+}
+```
+
+## Key Takeaways
+
+<Note>
+- The main process is the application entry point and lifecycle manager
+- `CodeApplication` orchestrates services and window creation
+- IPC enables communication between main and renderer processes
+- Native integration provides OS-specific functionality (menus, dialogs, tray)
+- Security is enforced through sandboxing and context isolation
+- The multi-process architecture isolates concerns and improves stability
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture Overview" icon="sitemap" href="/architecture/overview">
+    Return to architecture overview
+  </Card>
+  <Card title="Workbench Layer" icon="window-maximize" href="/architecture/workbench-layer">
+    Review the workbench structure
+  </Card>
+</CardGroup>

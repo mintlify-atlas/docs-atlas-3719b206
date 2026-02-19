@@ -1,0 +1,822 @@
+---
+title: CLI Commands Reference
+description: Complete reference for all Visual Studio Code CLI commands and options
+---
+
+This page provides a comprehensive reference for all Visual Studio Code CLI commands, options, and usage patterns.
+
+## Basic Syntax
+
+```bash
+code [options] [paths...]
+```
+
+## Opening Files and Folders
+
+The default behavior (no subcommand) launches VS Code with the specified files or folders.
+
+### Options
+
+<ParamField path="paths" type="string[]">
+  One or more files, folders, or URIs to open. Can also use `-` to read from stdin.
+</ParamField>
+
+### Examples
+
+<CodeGroup>
+```bash Open a file
+code myfile.txt
+```
+
+```bash Open multiple files
+code file1.txt file2.txt file3.txt
+```
+
+```bash Open a folder
+code /path/to/project
+```
+
+```bash Read from stdin
+echo "console.log('Hello')" | code -
+```
+</CodeGroup>
+
+## Editor Options
+
+<ParamField path="--diff" type="string[]">
+  Compare two files with each other.
+  
+  ```bash
+  code --diff file1.txt file2.txt
+  ```
+</ParamField>
+
+<ParamField path="--add" type="string">
+  Add folder(s) to the last active window.
+  
+  ```bash
+  code --add /path/to/folder
+  ```
+</ParamField>
+
+<ParamField path="--goto" type="string">
+  Open a file at the specified line and character position. Format: `file:line[:character]`
+  
+  ```bash
+  code --goto myfile.txt:42:5
+  ```
+</ParamField>
+
+<ParamField path="--new-window" type="boolean">
+  Force to open a new window.
+  
+  ```bash
+  code --new-window
+  ```
+</ParamField>
+
+<ParamField path="--reuse-window" type="boolean">
+  Force to open a file or folder in an existing window.
+  
+  ```bash
+  code --reuse-window myfile.txt
+  ```
+</ParamField>
+
+<ParamField path="--wait" type="boolean">
+  Wait for the files to be closed before returning. Useful for using VS Code as an editor for git commit messages.
+  
+  ```bash
+  code --wait myfile.txt
+  ```
+</ParamField>
+
+<ParamField path="--locale" type="string">
+  The locale to use (e.g., en-US or zh-TW).
+  
+  ```bash
+  code --locale ja
+  ```
+</ParamField>
+
+<ParamField path="--enable-proposed-api" type="string[]">
+  Enables proposed API features for extensions. Can receive one or more extension IDs.
+  
+  ```bash
+  code --enable-proposed-api ms-vscode.example-extension
+  ```
+</ParamField>
+
+## Extension Commands
+
+Manage VS Code extensions from the command line.
+
+### `code ext list`
+
+List installed extensions.
+
+<ParamField path="--show-versions" type="boolean">
+  Show versions of installed extensions.
+  
+  ```bash
+  code ext list --show-versions
+  ```
+</ParamField>
+
+<ParamField path="--category" type="string">
+  Filters installed extensions by provided category.
+  
+  ```bash
+  code ext list --category "Programming Languages"
+  ```
+</ParamField>
+
+### `code ext install`
+
+Install one or more extensions.
+
+<ParamField path="id-or-path" type="string[]" required>
+  Extension identifier(s) in the format `publisher.name` or path(s) to VSIX file(s).
+  
+  ```bash
+  code ext install ms-python.python
+  code ext install ms-vscode.cpptools ms-dotnettools.csharp
+  code ext install /path/to/extension.vsix
+  ```
+</ParamField>
+
+<ParamField path="--pre-release" type="boolean">
+  Installs the pre-release version of the extension.
+  
+  ```bash
+  code ext install ms-python.python --pre-release
+  ```
+</ParamField>
+
+<ParamField path="--force" type="boolean">
+  Update to the latest version of the extension if it's already installed.
+  
+  ```bash
+  code ext install ms-python.python --force
+  ```
+</ParamField>
+
+<ParamField path="--donot-include-pack-and-dependencies" type="boolean">
+  Don't include installing pack and dependencies of the extension.
+</ParamField>
+
+### `code ext uninstall`
+
+Uninstall one or more extensions.
+
+<ParamField path="ext-id" type="string[]" required>
+  Extension identifier(s) to uninstall in the format `publisher.name`.
+  
+  ```bash
+  code ext uninstall ms-python.python
+  code ext uninstall ms-vscode.cpptools ms-dotnettools.csharp
+  ```
+</ParamField>
+
+### `code ext update`
+
+Update all installed extensions to their latest versions.
+
+```bash
+code ext update
+```
+
+## Status Command
+
+### `code status`
+
+Print process usage and diagnostics information.
+
+```bash
+code status
+```
+
+This command displays information about running VS Code processes, resource usage, and system diagnostics.
+
+## Version Commands
+
+Manage which version of VS Code the CLI uses.
+
+### `code version show`
+
+Show the currently configured editor version.
+
+```bash
+code version show
+```
+
+Output:
+```
+Current quality: stable
+Installation path: /Applications/Visual Studio Code.app/Contents/Resources/app/bin/code
+```
+
+### `code version use`
+
+Switch the version of VS Code you're using.
+
+<ParamField path="version" type="string" required>
+  The version to use. Can be:
+  - `stable` - Latest stable release
+  - `insiders` - Latest insiders build
+  - `x.y.z` - Specific version number
+  - Absolute path to an existing install
+  
+  ```bash
+  code version use stable
+  code version use insiders
+  code version use 1.85.0
+  code version use /path/to/vscode
+  ```
+</ParamField>
+
+<ParamField path="--install-dir" type="string">
+  The directory where the version can be found.
+  
+  ```bash
+  code version use stable --install-dir /custom/path
+  ```
+</ParamField>
+
+## Tunnel Commands
+
+Create and manage secure remote tunnels. See the [Remote Tunnels](/cli/tunnel) page for detailed information.
+
+### `code tunnel`
+
+Create a tunnel that's accessible on vscode.dev from anywhere.
+
+```bash
+code tunnel
+```
+
+<ParamField path="--name" type="string">
+  Sets the machine name for port forwarding service.
+  
+  ```bash
+  code tunnel --name my-dev-machine
+  ```
+</ParamField>
+
+<ParamField path="--random-name" type="boolean">
+  Randomly name machine for port forwarding service.
+  
+  ```bash
+  code tunnel --random-name
+  ```
+</ParamField>
+
+<ParamField path="--accept-server-license-terms" type="boolean">
+  Accept the server license terms automatically without a user prompt.
+  
+  ```bash
+  code tunnel --accept-server-license-terms
+  ```
+</ParamField>
+
+<ParamField path="--no-sleep" type="boolean">
+  Prevents the machine from going to sleep while the tunnel is running.
+  
+  ```bash
+  code tunnel --no-sleep
+  ```
+</ParamField>
+
+### Tunnel Subcommands
+
+<Tabs>
+  <Tab title="status">
+    Get tunnel status information.
+    
+    ```bash
+    code tunnel status
+    ```
+    
+    Returns JSON output with tunnel and service status.
+  </Tab>
+  
+  <Tab title="kill">
+    Stop any running tunnel on the system.
+    
+    ```bash
+    code tunnel kill
+    ```
+  </Tab>
+  
+  <Tab title="restart">
+    Restart any running tunnel on the system.
+    
+    ```bash
+    code tunnel restart
+    ```
+  </Tab>
+  
+  <Tab title="rename">
+    Rename the machine associated with the tunnel.
+    
+    ```bash
+    code tunnel rename new-machine-name
+    ```
+  </Tab>
+  
+  <Tab title="unregister">
+    Remove this machine's association with the port forwarding service.
+    
+    ```bash
+    code tunnel unregister
+    ```
+  </Tab>
+  
+  <Tab title="prune">
+    Delete all tunnel servers which are not currently running.
+    
+    ```bash
+    code tunnel prune
+    ```
+  </Tab>
+</Tabs>
+
+### Tunnel User Commands
+
+Manage authentication for tunnels.
+
+<Tabs>
+  <Tab title="login">
+    Log in to the port forwarding service.
+    
+    ```bash
+    code tunnel user login
+    ```
+    
+    <ParamField path="--provider" type="string">
+      The auth provider to use. Options: `github`, `microsoft`
+      
+      ```bash
+      code tunnel user login --provider github
+      ```
+    </ParamField>
+    
+    <ParamField path="--access-token" type="string">
+      Provide an access token for authentication. Requires `--provider`.
+      
+      ```bash
+      code tunnel user login --provider github --access-token TOKEN
+      ```
+      
+      Can also use environment variable: `VSCODE_CLI_ACCESS_TOKEN`
+    </ParamField>
+  </Tab>
+  
+  <Tab title="logout">
+    Log out of the port forwarding service.
+    
+    ```bash
+    code tunnel user logout
+    ```
+  </Tab>
+  
+  <Tab title="show">
+    Show the currently logged-in account.
+    
+    ```bash
+    code tunnel user show
+    ```
+  </Tab>
+</Tabs>
+
+### Tunnel Service Commands
+
+Manage the tunnel as a system service (runs in background).
+
+<Tabs>
+  <Tab title="install">
+    Install the tunnel service on the machine.
+    
+    ```bash
+    code tunnel service install
+    ```
+    
+    <ParamField path="--name" type="string">
+      Sets the machine name for the service.
+    </ParamField>
+    
+    <ParamField path="--accept-server-license-terms" type="boolean">
+      Accept server license terms automatically.
+    </ParamField>
+  </Tab>
+  
+  <Tab title="uninstall">
+    Uninstall and stop the tunnel service.
+    
+    ```bash
+    code tunnel service uninstall
+    ```
+  </Tab>
+  
+  <Tab title="log">
+    Show logs for the running service.
+    
+    ```bash
+    code tunnel service log
+    ```
+  </Tab>
+</Tabs>
+
+## Serve Web Command
+
+Run a local web version of VS Code.
+
+### `code serve-web`
+
+```bash
+code serve-web
+```
+
+<ParamField path="--host" type="string" default="localhost">
+  Host to listen on.
+  
+  ```bash
+  code serve-web --host 0.0.0.0
+  ```
+</ParamField>
+
+<ParamField path="--port" type="number" default="8000">
+  Port to listen on. If 0 is passed, a random free port is picked.
+  
+  ```bash
+  code serve-web --port 3000
+  code serve-web --port 0  # Random port
+  ```
+</ParamField>
+
+<ParamField path="--socket-path" type="string">
+  Path to a socket file for the server to listen to.
+  
+  ```bash
+  code serve-web --socket-path /tmp/vscode.sock
+  ```
+</ParamField>
+
+<ParamField path="--connection-token" type="string">
+  A secret that must be included with all requests.
+  
+  ```bash
+  code serve-web --connection-token my-secret-token
+  ```
+</ParamField>
+
+<ParamField path="--connection-token-file" type="string">
+  A file containing a secret that must be included with all requests.
+  
+  ```bash
+  code serve-web --connection-token-file /path/to/token.txt
+  ```
+</ParamField>
+
+<ParamField path="--without-connection-token" type="boolean">
+  Run without a connection token. Only use if the connection is secured by other means.
+  
+  ```bash
+  code serve-web --without-connection-token
+  ```
+</ParamField>
+
+<ParamField path="--server-base-path" type="string">
+  Specifies the path under which the web UI and code server are provided.
+  
+  ```bash
+  code serve-web --server-base-path /vscode
+  ```
+</ParamField>
+
+<ParamField path="--server-data-dir" type="string">
+  Specifies the directory that server data is kept in.
+  
+  ```bash
+  code serve-web --server-data-dir ~/.vscode-server-data
+  ```
+</ParamField>
+
+<ParamField path="--commit-id" type="string">
+  Use a specific commit SHA for the client.
+  
+  ```bash
+  code serve-web --commit-id abc123def456
+  ```
+</ParamField>
+
+<ParamField path="--accept-server-license-terms" type="boolean">
+  Accept the server license terms automatically.
+</ParamField>
+
+## Desktop Code Options
+
+These options apply whenever the desktop editor is launched.
+
+<ParamField path="--extensions-dir" type="string">
+  Set the root path for extensions.
+  
+  ```bash
+  code --extensions-dir ~/.vscode-extensions
+  ```
+</ParamField>
+
+<ParamField path="--user-data-dir" type="string">
+  Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of the editor.
+  
+  ```bash
+  code --user-data-dir ~/.vscode-dev
+  ```
+</ParamField>
+
+<ParamField path="--use-version" type="string">
+  Sets the editor version to use for this command. Can be `stable`, `insiders`, a version number, or an absolute path.
+  
+  ```bash
+  code --use-version insiders myfile.txt
+  ```
+</ParamField>
+
+## Troubleshooting Options
+
+<ParamField path="--disable-extensions" type="boolean">
+  Disable all installed extensions.
+  
+  ```bash
+  code --disable-extensions
+  ```
+</ParamField>
+
+<ParamField path="--disable-extension" type="string[]">
+  Disable specific extension(s).
+  
+  ```bash
+  code --disable-extension ms-python.python
+  ```
+</ParamField>
+
+<ParamField path="--disable-gpu" type="boolean">
+  Disable GPU hardware acceleration.
+  
+  ```bash
+  code --disable-gpu
+  ```
+</ParamField>
+
+<ParamField path="--sync" type="string">
+  Turn sync on or off. Values: `on`, `off`
+  
+  ```bash
+  code --sync off
+  ```
+</ParamField>
+
+<ParamField path="--inspect-extensions" type="number">
+  Allow debugging and profiling of extensions. Specify the debug port.
+  
+  ```bash
+  code --inspect-extensions 9333
+  ```
+</ParamField>
+
+<ParamField path="--inspect-brk-extensions" type="number">
+  Allow debugging and profiling of extensions with the extension host being paused after start.
+  
+  ```bash
+  code --inspect-brk-extensions 9333
+  ```
+</ParamField>
+
+<ParamField path="--prof-startup" type="boolean">
+  Run CPU profiler during startup.
+  
+  ```bash
+  code --prof-startup
+  ```
+</ParamField>
+
+<ParamField path="--telemetry" type="boolean">
+  Show all telemetry events which the editor collects.
+  
+  ```bash
+  code --telemetry
+  ```
+</ParamField>
+
+## Global Options
+
+These options are available for all commands.
+
+<ParamField path="--verbose" type="boolean">
+  Print verbose output.
+  
+  ```bash
+  code --verbose tunnel
+  ```
+</ParamField>
+
+<ParamField path="--log" type="string">
+  Log level to use. Values: `off`, `critical`, `error`, `warn`, `info`, `debug`, `trace`
+  
+  ```bash
+  code --log debug tunnel
+  ```
+</ParamField>
+
+<ParamField path="--cli-data-dir" type="string">
+  Directory where CLI metadata should be stored.
+  
+  ```bash
+  code --cli-data-dir ~/.my-vscode-cli tunnel
+  ```
+  
+  Can also set via environment variable: `VSCODE_CLI_DATA_DIR`
+</ParamField>
+
+<ParamField path="--disable-telemetry" type="boolean">
+  Disable telemetry for the current command.
+  
+  ```bash
+  code --disable-telemetry tunnel
+  ```
+</ParamField>
+
+<ParamField path="--telemetry-level" type="string">
+  Sets the initial telemetry level. Values: `off`, `crash`, `error`, `all`
+  
+  ```bash
+  code --telemetry-level off
+  ```
+</ParamField>
+
+## Standalone CLI Commands
+
+These commands are only available in standalone CLI installations.
+
+### `code update`
+
+Update the CLI to the latest version.
+
+```bash
+code update
+```
+
+<ParamField path="--check" type="boolean">
+  Only check for updates without actually updating.
+  
+  ```bash
+  code update --check
+  ```
+</ParamField>
+
+## Server Options
+
+Options available for tunnel and serve-web commands that start a server.
+
+<ParamField path="--install-extension" type="string[]">
+  Requests that extensions be preloaded and installed on connecting servers.
+  
+  ```bash
+  code tunnel --install-extension ms-python.python
+  ```
+</ParamField>
+
+<ParamField path="--server-data-dir" type="string">
+  Specifies the directory that server data is kept in.
+  
+  ```bash
+  code tunnel --server-data-dir ~/.vscode-server
+  ```
+</ParamField>
+
+<ParamField path="--extensions-dir" type="string">
+  Set the root path for extensions on the server.
+  
+  ```bash
+  code tunnel --extensions-dir ~/.vscode-server-extensions
+  ```
+</ParamField>
+
+<ParamField path="--reconnection-grace-time" type="number" default="10800">
+  Reconnection grace time in seconds. Default is 10800 (3 hours).
+  
+  ```bash
+  code tunnel --reconnection-grace-time 7200
+  ```
+</ParamField>
+
+## Environment Variables
+
+The CLI respects these environment variables:
+
+<ParamField path="VSCODE_CLI_DATA_DIR" type="string">
+  Override the CLI data directory.
+</ParamField>
+
+<ParamField path="VSCODE_CLI_ACCESS_TOKEN" type="string">
+  Provide access token for tunnel authentication.
+</ParamField>
+
+<ParamField path="VSCODE_CLI_REFRESH_TOKEN" type="string">
+  Provide refresh token for tunnel authentication.
+</ParamField>
+
+<ParamField path="VSCODE_CLI_REQUIRE_TOKEN" type="string">
+  Require token string for command shell connections.
+</ParamField>
+
+<ParamField path="VSCODE_CLI_NONINTERACTIVE" type="string">
+  Disable interactive prompts.
+</ParamField>
+
+<ParamField path="NO_COLOR" type="string">
+  Disable colored output.
+</ParamField>
+
+<ParamField path="TUNNEL_SERVICE_USER_AGENT" type="string">
+  Custom user agent for tunnel service.
+</ParamField>
+
+## Exit Codes
+
+The CLI uses standard exit codes:
+
+- `0` - Success
+- `1` - General error or operation failed
+- Other non-zero values indicate specific error conditions
+
+## Tips and Best Practices
+
+<AccordionGroup>
+  <Accordion title="Using VS Code as Git Editor">
+    Configure VS Code as your git commit message editor:
+    
+    ```bash
+    git config --global core.editor "code --wait"
+    ```
+    
+    The `--wait` flag makes git wait for you to close the file before continuing.
+  </Accordion>
+  
+  <Accordion title="Opening Large Projects Efficiently">
+    Use `--new-window` to avoid interfering with existing workspaces:
+    
+    ```bash
+    code --new-window /path/to/large/project
+    ```
+  </Accordion>
+  
+  <Accordion title="Working with Multiple Profiles">
+    Use `--user-data-dir` to maintain separate profiles:
+    
+    ```bash
+    # Personal profile
+    code --user-data-dir ~/.vscode-personal
+    
+    # Work profile
+    code --user-data-dir ~/.vscode-work
+    ```
+  </Accordion>
+  
+  <Accordion title="Batch Extension Management">
+    Install multiple extensions at once:
+    
+    ```bash
+    code ext install ms-python.python ms-vscode.cpptools ms-dotnettools.csharp
+    ```
+    
+    Export and import extension lists:
+    ```bash
+    # Export
+    code ext list > extensions.txt
+    
+    # Import
+    cat extensions.txt | xargs -L 1 code ext install
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Remote Tunnels" icon="network-wired" href="/cli/tunnel">
+    Learn about secure remote access
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/cli/configuration">
+    Configure the CLI for your workflow
+  </Card>
+  
+  <Card title="Installation" icon="download" href="/cli/installation">
+    Install the CLI on your system
+  </Card>
+  
+  <Card title="Overview" icon="book" href="/cli/overview">
+    Back to CLI overview
+  </Card>
+</CardGroup>

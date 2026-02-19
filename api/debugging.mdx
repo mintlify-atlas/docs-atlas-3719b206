@@ -1,0 +1,740 @@
+---
+title: 'Debugging API'
+description: 'Integrate debugging capabilities in Visual Studio Code extensions'
+---
+
+# Debugging API
+
+The Debugging API allows extensions to integrate debugging capabilities into VS Code. You can create debug adapters, provide debug configurations, and control debug sessions programmatically.
+
+## Namespace
+
+```typescript
+vscode.debug
+```
+
+All debugging functionality is available through the `debug` namespace.
+
+## Debug Sessions
+
+### Accessing Active Session
+
+```typescript
+import * as vscode from 'vscode';
+
+// Get active debug session
+const session = vscode.debug.activeDebugSession;
+if (session) {
+    console.log('Active session:', session.name);
+    console.log('Type:', session.type);
+    console.log('ID:', session.id);
+}
+
+// Access debug console
+const console = vscode.debug.activeDebugConsole;
+console.appendLine('Debug message');
+console.append('Inline message');
+```
+
+<ParamField path="id" type="string" readonly>
+  Unique identifier of the debug session
+</ParamField>
+
+<ParamField path="type" type="string" readonly>
+  Debug session type from the configuration
+</ParamField>
+
+<ParamField path="name" type="string">
+  Human-readable session name (can be modified)
+</ParamField>
+
+<ParamField path="workspaceFolder" type="WorkspaceFolder | undefined" readonly>
+  Workspace folder for this session
+</ParamField>
+
+<ParamField path="configuration" type="DebugConfiguration" readonly>
+  Resolved debug configuration with substituted variables
+</ParamField>
+
+### Debug Session Events
+
+<Tabs>
+  <Tab title="Session Lifecycle">
+    ```typescript
+    vscode.debug.onDidStartDebugSession(session => {
+        console.log('Debug session started:', session.name);
+    });
+    
+    vscode.debug.onDidTerminateDebugSession(session => {
+        console.log('Debug session ended:', session.name);
+    });
+    
+    vscode.debug.onDidChangeActiveDebugSession(session => {
+        if (session) {
+            console.log('Active session changed to:', session.name);
+        } else {
+            console.log('No active debug session');
+        }
+    });
+    ```
+  </Tab>
+  <Tab title="Custom Events">
+    ```typescript
+    vscode.debug.onDidReceiveDebugSessionCustomEvent(event => {
+        const { session, event: eventType, body } = event;
+        
+        console.log(`Custom event '${eventType}' from ${session.name}`);
+        console.log('Event data:', body);
+        
+        // Handle custom DAP events
+        if (eventType === 'myCustomEvent') {
+            // Process event
+        }
+    });
+    ```
+  </Tab>
+  <Tab title="Stack Item">
+    ```typescript
+    vscode.debug.onDidChangeActiveStackItem(stackItem => {
+        if (stackItem) {
+            console.log('Active stack item changed');
+            
+            // Check if it's a thread or frame
+            if ('frameId' in stackItem) {
+                console.log('Stack frame:', stackItem.frameId);
+            } else {
+                console.log('Thread:', stackItem.threadId);
+            }
+        }
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Starting Debug Sessions
+
+### Start Debugging
+
+```typescript
+// Start with named configuration
+const folder = vscode.workspace.workspaceFolders?.[0];
+await vscode.debug.startDebugging(
+    folder,
+    'Launch Program'  // Name from launch.json
+);
+
+// Start with debug configuration object
+const config: vscode.DebugConfiguration = {
+    type: 'node',
+    name: 'Launch',
+    request: 'launch',
+    program: '${workspaceFolder}/app.js',
+    stopOnEntry: true
+};
+
+await vscode.debug.startDebugging(folder, config);
+
+// Start with options
+await vscode.debug.startDebugging(folder, config, {
+    noDebug: false,
+    compact: false,
+    suppressDebugToolbar: false,
+    suppressDebugStatusbar: false,
+    suppressDebugView: false
+});
+```
+
+<ParamField path="folder" type="WorkspaceFolder | undefined">
+  Workspace folder for resolving variables
+</ParamField>
+
+<ParamField path="nameOrConfiguration" type="string | DebugConfiguration" required>
+  Configuration name or object
+</ParamField>
+
+<ParamField path="options" type="DebugSessionOptions">
+  Additional session options
+</ParamField>
+
+### Stop Debugging
+
+```typescript
+// Stop specific session
+const session = vscode.debug.activeDebugSession;
+if (session) {
+    await vscode.debug.stopDebugging(session);
+}
+
+// Stop all sessions
+await vscode.debug.stopDebugging();
+```
+
+## Breakpoints
+
+### Managing Breakpoints
+
+```typescript
+// Get all breakpoints
+const breakpoints = vscode.debug.breakpoints;
+console.log(`Total breakpoints: ${breakpoints.length}`);
+
+// Add breakpoints
+const bp1 = new vscode.SourceBreakpoint(
+    new vscode.Location(
+        vscode.Uri.file('/path/to/file.ts'),
+        new vscode.Position(10, 0)
+    ),
+    true,  // enabled
+    'x > 10',  // condition
+    '5'  // hit condition
+);
+
+const bp2 = new vscode.FunctionBreakpoint(
+    'myFunction',
+    true,
+    'count > 100'
+);
+
+vscode.debug.addBreakpoints([bp1, bp2]);
+
+// Remove breakpoints
+vscode.debug.removeBreakpoints([bp1, bp2]);
+```
+
+### Breakpoint Events
+
+```typescript
+vscode.debug.onDidChangeBreakpoints(event => {
+    console.log('Added:', event.added);
+    console.log('Removed:', event.removed);
+    console.log('Changed:', event.changed);
+    
+    for (const bp of event.added) {
+        if (bp instanceof vscode.SourceBreakpoint) {
+            console.log('Source breakpoint:', bp.location);
+        } else if (bp instanceof vscode.FunctionBreakpoint) {
+            console.log('Function breakpoint:', bp.functionName);
+        }
+    }
+});
+```
+
+## Debug Configuration Provider
+
+### Providing Debug Configurations
+
+```typescript
+vscode.debug.registerDebugConfigurationProvider(
+    'node',
+    {
+        provideDebugConfigurations(folder, token) {
+            // Provide initial configurations
+            return [
+                {
+                    type: 'node',
+                    request: 'launch',
+                    name: 'Launch Program',
+                    program: '${workspaceFolder}/app.js'
+                }
+            ];
+        },
+        
+        resolveDebugConfiguration(folder, config, token) {
+            // Resolve and validate configuration
+            if (!config.type && !config.request && !config.name) {
+                // Return null to abort launch
+                return null;
+            }
+            
+            // Add missing properties
+            if (!config.program) {
+                config.program = '${workspaceFolder}/app.js';
+            }
+            
+            return config;
+        },
+        
+        resolveDebugConfigurationWithSubstitutedVariables(folder, config, token) {
+            // Final validation after variable substitution
+            if (!validateConfig(config)) {
+                vscode.window.showErrorMessage('Invalid debug configuration');
+                return undefined;
+            }
+            
+            return config;
+        }
+    },
+    vscode.DebugConfigurationProviderTriggerKind.Dynamic
+);
+```
+
+<Note>
+Use `DebugConfigurationProviderTriggerKind.Initial` for initial launch.json configurations, and `Dynamic` for configurations shown in the debug dropdown.
+</Note>
+
+## Debug Adapter
+
+### Debug Adapter Descriptor Factory
+
+```typescript
+vscode.debug.registerDebugAdapterDescriptorFactory('myDebugType', {
+    createDebugAdapterDescriptor(session, executable) {
+        // Return executable adapter
+        return new vscode.DebugAdapterExecutable(
+            '/path/to/adapter',
+            ['--arg1', 'value1'],
+            {
+                env: { DEBUG: 'true' },
+                cwd: '/working/dir'
+            }
+        );
+        
+        // Or return server adapter
+        return new vscode.DebugAdapterServer(4711, 'localhost');
+        
+        // Or return named pipe adapter
+        return new vscode.DebugAdapterNamedPipeServer('/tmp/debug-pipe');
+        
+        // Or return inline implementation
+        return new vscode.DebugAdapterInlineImplementation(customAdapter);
+    }
+});
+```
+
+<CodeGroup>
+```typescript Executable
+new vscode.DebugAdapterExecutable(
+    'node',
+    ['/path/to/debugAdapter.js'],
+    { cwd: workspaceFolder }
+)
+```
+
+```typescript Server
+new vscode.DebugAdapterServer(4711, 'localhost')
+```
+
+```typescript Named Pipe
+new vscode.DebugAdapterNamedPipeServer('/tmp/debug-socket')
+```
+</CodeGroup>
+
+### Debug Adapter Tracker
+
+```typescript
+vscode.debug.registerDebugAdapterTrackerFactory('*', {
+    createDebugAdapterTracker(session) {
+        return {
+            onWillStartSession() {
+                console.log('Session starting:', session.name);
+            },
+            onWillReceiveMessage(message) {
+                console.log('-> Adapter:', message);
+            },
+            onDidSendMessage(message) {
+                console.log('<- Adapter:', message);
+            },
+            onWillStopSession() {
+                console.log('Session stopping');
+            },
+            onError(error) {
+                console.error('Adapter error:', error);
+            },
+            onExit(code, signal) {
+                console.log('Adapter exited:', code, signal);
+            }
+        };
+    }
+});
+```
+
+## Custom Requests
+
+### Sending Custom Requests
+
+```typescript
+const session = vscode.debug.activeDebugSession;
+if (session) {
+    // Send custom DAP request
+    const response = await session.customRequest('evaluate', {
+        expression: 'myVariable',
+        context: 'watch'
+    });
+    
+    console.log('Evaluation result:', response.result);
+    
+    // Get stack trace
+    const stackTrace = await session.customRequest('stackTrace', {
+        threadId: 1
+    });
+}
+```
+
+## Debug Console
+
+### Writing to Debug Console
+
+```typescript
+const debugConsole = vscode.debug.activeDebugConsole;
+
+// Append text
+debugConsole.append('Processing...');
+
+// Append line
+debugConsole.appendLine('Debug: Value = 42');
+debugConsole.appendLine(`Variable: ${JSON.stringify(obj, null, 2)}`);
+```
+
+## Package.json Contributions
+
+Define debug configurations in your extension manifest:
+
+```json package.json
+{
+  "contributes": {
+    "debuggers": [
+      {
+        "type": "node",
+        "label": "Node Debug",
+        "program": "./out/debugAdapter.js",
+        "runtime": "node",
+        "configurationAttributes": {
+          "launch": {
+            "required": ["program"],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "The program to debug"
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "description": "Automatically stop after launch",
+                "default": false
+              }
+            }
+          },
+          "attach": {
+            "required": ["port"],
+            "properties": {
+              "port": {
+                "type": "number",
+                "description": "Port to attach to"
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Program",
+            "program": "${workspaceFolder}/app.js"
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "Node.js: Launch Program",
+            "description": "Launch a node program in debug mode",
+            "body": {
+              "type": "node",
+              "request": "launch",
+              "name": "Launch Program",
+              "program": "${workspaceFolder}/^\"app.js\""
+            }
+          }
+        ]
+      }
+    ],
+    "breakpoints": [
+      {
+        "language": "javascript"
+      },
+      {
+        "language": "typescript"
+      }
+    ]
+  }
+}
+```
+
+## Debug Configuration
+
+### DebugConfiguration Interface
+
+```typescript
+interface DebugConfiguration {
+    type: string;      // Debugger type
+    name: string;      // Configuration name
+    request: string;   // 'launch' or 'attach'
+    [key: string]: any; // Type-specific properties
+}
+```
+
+### Creating Configurations
+
+```typescript
+const config: vscode.DebugConfiguration = {
+    type: 'node',
+    name: 'Debug Tests',
+    request: 'launch',
+    program: '${workspaceFolder}/test.js',
+    args: ['--verbose'],
+    cwd: '${workspaceFolder}',
+    env: {
+        NODE_ENV: 'test'
+    },
+    stopOnEntry: false,
+    console: 'integratedTerminal'
+};
+
+// Start debugging with this config
+await vscode.debug.startDebugging(undefined, config);
+```
+
+## Debug Adapter Protocol
+
+### Implementing Debug Adapter
+
+```typescript
+class MyDebugAdapter implements vscode.DebugAdapter {
+    private messageEmitter = new vscode.EventEmitter<vscode.DebugProtocolMessage>();
+    
+    readonly onDidSendMessage = this.messageEmitter.event;
+    
+    handleMessage(message: vscode.DebugProtocolMessage): void {
+        // Process DAP message from VS Code
+        console.log('Received message:', message);
+        
+        // Send response
+        this.messageEmitter.fire({
+            seq: 1,
+            type: 'response',
+            request_seq: message.seq,
+            command: message.command,
+            success: true,
+            body: {}
+        });
+    }
+    
+    dispose(): void {
+        this.messageEmitter.dispose();
+    }
+}
+
+// Register inline debug adapter
+vscode.debug.registerDebugAdapterDescriptorFactory('myDebugType', {
+    createDebugAdapterDescriptor(session) {
+        return new vscode.DebugAdapterInlineImplementation(
+            new MyDebugAdapter()
+        );
+    }
+});
+```
+
+## Evaluatable Expressions
+
+### Evaluatable Expression Provider
+
+```typescript
+vscode.languages.registerEvaluatableExpressionProvider('javascript', {
+    provideEvaluatableExpression(document, position, token) {
+        const range = document.getWordRangeAtPosition(position);
+        const word = document.getText(range);
+        
+        // Return expression that debugger should evaluate
+        if (isValidExpression(word)) {
+            return new vscode.EvaluatableExpression(range, word);
+        }
+        
+        return undefined;
+    }
+});
+```
+
+### Inline Values Provider
+
+```typescript
+vscode.languages.registerInlineValuesProvider('python', {
+    provideInlineValues(document, viewPort, context, token) {
+        const values: vscode.InlineValue[] = [];
+        
+        // Show variable values inline during debugging
+        if (context.stoppedLocation) {
+            values.push(
+                new vscode.InlineValueVariableLookup(
+                    new vscode.Range(5, 0, 5, 10),
+                    'myVariable'
+                )
+            );
+            
+            values.push(
+                new vscode.InlineValueEvaluatableExpression(
+                    new vscode.Range(6, 0, 6, 15),
+                    'obj.property'
+                )
+            );
+            
+            values.push(
+                new vscode.InlineValueText(
+                    new vscode.Range(7, 0, 7, 5),
+                    'Custom text'
+                )
+            );
+        }
+        
+        return values;
+    }
+});
+```
+
+## Advanced Features
+
+### Parent-Child Debug Sessions
+
+```typescript
+// Start child debug session
+const parentSession = vscode.debug.activeDebugSession;
+
+if (parentSession) {
+    const childConfig: vscode.DebugConfiguration = {
+        type: 'node',
+        name: 'Child Process',
+        request: 'attach',
+        port: 9229
+    };
+    
+    await vscode.debug.startDebugging(
+        undefined,
+        childConfig,
+        {
+            parentSession: parentSession,
+            consoleMode: vscode.DebugConsoleMode.MergeWithParent
+        }
+    );
+}
+```
+
+### Debug Protocol Breakpoints
+
+```typescript
+const session = vscode.debug.activeDebugSession;
+if (session) {
+    const breakpoint = vscode.debug.breakpoints[0];
+    
+    // Get DAP breakpoint
+    const dapBreakpoint = await session.getDebugProtocolBreakpoint(
+        breakpoint
+    );
+    
+    if (dapBreakpoint) {
+        console.log('DAP breakpoint:', dapBreakpoint);
+    }
+}
+```
+
+## Testing Integration
+
+### Link Debug Session to Test Run
+
+```typescript
+const testRun = testController.createTestRun(request);
+
+const debugConfig: vscode.DebugConfiguration = {
+    type: 'node',
+    name: 'Debug Test',
+    request: 'launch',
+    program: testFile
+};
+
+await vscode.debug.startDebugging(
+    workspaceFolder,
+    debugConfig,
+    {
+        testRun: testRun,
+        suppressDebugView: true
+    }
+);
+```
+
+## Common Patterns
+
+### Dynamic Debug Configurations
+
+```typescript
+vscode.debug.registerDebugConfigurationProvider(
+    'python',
+    {
+        async provideDebugConfigurations(folder, token) {
+            // Generate configurations dynamically
+            const configs: vscode.DebugConfiguration[] = [];
+            
+            // Find Python files
+            const files = await vscode.workspace.findFiles('**/*.py', null, 10);
+            
+            for (const file of files) {
+                configs.push({
+                    type: 'python',
+                    name: `Debug ${path.basename(file.fsPath)}`,
+                    request: 'launch',
+                    program: file.fsPath
+                });
+            }
+            
+            return configs;
+        }
+    },
+    vscode.DebugConfigurationProviderTriggerKind.Dynamic
+);
+```
+
+### Auto-attach Debugger
+
+```typescript
+vscode.workspace.onDidOpenTextDocument(async document => {
+    if (document.languageId === 'javascript' && shouldAutoDebug(document)) {
+        await vscode.debug.startDebugging(undefined, {
+            type: 'node',
+            name: 'Auto Debug',
+            request: 'launch',
+            program: document.uri.fsPath
+        });
+    }
+});
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Configuration">
+    - Provide sensible default configurations
+    - Validate configurations before starting
+    - Support both launch and attach modes
+    - Document all configuration properties
+  </Accordion>
+  
+  <Accordion title="Performance">
+    - Use debug adapter server for better performance
+    - Cache debug adapter instances when possible
+    - Implement efficient variable evaluation
+    - Handle large data sets appropriately
+  </Accordion>
+  
+  <Accordion title="User Experience">
+    - Provide clear error messages
+    - Support variable substitution in configurations
+    - Implement proper breakpoint handling
+    - Show meaningful debug console output
+  </Accordion>
+</AccordionGroup>
+
+## Resources
+
+- [Debug Adapter Protocol](https://microsoft.github.io/debug-adapter-protocol/)
+- [Debugger Extension Guide](https://code.visualstudio.com/api/extension-guides/debugger-extension)
+- [Debug Adapter Samples](https://github.com/microsoft/vscode-debugadapter-node)
+
+## Related APIs
+
+- **[Commands API](/api/commands)** - Execute debug commands
+- **[Workspace API](/api/workspace)** - Access workspace files
+- **[Languages API](/api/languages)** - Provide debug hover info

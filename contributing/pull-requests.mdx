@@ -1,0 +1,490 @@
+---
+title: 'Pull Request Process'
+description: 'Guidelines for submitting and reviewing pull requests in VS Code'
+---
+
+## Overview
+
+This guide covers the pull request (PR) process for contributing code to Visual Studio Code. Following these guidelines helps ensure your contributions can be reviewed and merged efficiently.
+
+<Note>
+Before submitting a pull request, make sure you've read the [How to Contribute](/contributing/how-to-contribute) guide and [Coding Guidelines](/contributing/coding-guidelines).
+</Note>
+
+## Prerequisites
+
+Before creating a pull request:
+
+<Steps>
+  <Step title="Set Up Development Environment">
+    Follow the [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute) guide to:
+    - Fork and clone the repository
+    - Install dependencies
+    - Build from source
+    - Run VS Code in development mode
+  </Step>
+  <Step title="Find or Create an Issue">
+    Associate your PR with an existing issue, or create one first to discuss the proposed changes.
+  </Step>
+  <Step title="Create a Branch">
+    Create a new branch from `main` for your changes:
+    ```bash
+    git checkout -b fix/issue-12345
+    ```
+  </Step>
+</Steps>
+
+## Before Submitting
+
+### Code Quality Checklist
+
+Ensure your code meets these requirements:
+
+<AccordionGroup>
+  <Accordion title="Follows Coding Guidelines">
+    - Uses tabs for indentation (not spaces)
+    - Follows naming conventions (PascalCase for types, camelCase for functions)
+    - Includes JSDoc comments for public APIs
+    - Externalizes user-facing strings with `nls.localize()`
+    - Uses proper TypeScript types (avoids `any`)
+    
+    See [Coding Guidelines](/contributing/coding-guidelines) for details.
+  </Accordion>
+  
+  <Accordion title="Compiles Without Errors">
+    Run the build to check for TypeScript compilation errors:
+    ```bash
+    yarn watch  # or npm run watch
+    ```
+    Fix all errors before submitting.
+  </Accordion>
+  
+  <Accordion title="Passes All Tests">
+    Run the test suites to ensure nothing breaks:
+    ```bash
+    # Unit tests
+    ./scripts/test.sh
+    # or on Windows: .\scripts\test.bat
+    
+    # Integration tests
+    ./scripts/test-integration.sh
+    # or on Windows: .\scripts\test-integration.bat
+    ```
+  </Accordion>
+  
+  <Accordion title="Includes Tests for Changes">
+    Add new tests for:
+    - New features
+    - Bug fixes (reproduce the bug, then fix it)
+    - Changes to existing behavior
+    
+    Place tests in the appropriate location:
+    - Unit tests: `src/vs/*/test/` folders
+    - Integration tests: `test/` folder or extension tests
+  </Accordion>
+  
+  <Accordion title="Passes Layering Check">
+    Verify no architectural layer violations:
+    ```bash
+    npm run valid-layers-check
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Keep Code Up to Date
+
+<Warning>
+Ensure your code is up to date with the `main` branch before submitting.
+</Warning>
+
+```bash
+# Update your main branch
+git checkout main
+git pull upstream main
+
+# Rebase your feature branch
+git checkout your-feature-branch
+git rebase main
+```
+
+## Creating the Pull Request
+
+### PR Title
+
+Write a clear, concise title that describes what the PR does:
+
+<Tabs>
+  <Tab title="Good Examples">
+    - Fix hover flickering in editor
+    - Add support for workspace trust API
+    - Improve performance of file search
+    - Update TypeScript to 5.3
+  </Tab>
+  <Tab title="Bad Examples">
+    - Fix bug (too vague)
+    - Update (no context)
+    - Changes (doesn't describe what changed)
+    - WIP (work in progress should be marked as draft)
+  </Tab>
+</Tabs>
+
+### PR Description
+
+Provide a comprehensive description following the template:
+
+```markdown
+## Summary
+<!-- Brief description of what this PR does -->
+
+## Related Issues
+<!-- Link to related issues using #issue-number -->
+Fixes #12345
+
+## Changes
+<!-- List the main changes made -->
+- Added new API for workspace trust
+- Updated documentation
+- Added tests for edge cases
+
+## Testing
+<!-- How to test these changes -->
+1. Open a workspace
+2. Try the new trust feature
+3. Verify the behavior matches expectations
+
+## Screenshots/Videos
+<!-- If applicable, add screenshots or videos showing the changes -->
+```
+
+<Accordion title="PR Template Checklist">
+  The template ensures you include:
+  - **Associated issue**: Link using `Fixes #issue-number` or `Relates to #issue-number`
+  - **Description of changes**: What was changed and why
+  - **Testing instructions**: How reviewers can verify the changes
+  - **Visual evidence**: Screenshots or videos for UI changes
+</Accordion>
+
+### Draft vs Ready
+
+<Tabs>
+  <Tab title="Draft PR">
+    Use draft PRs when:
+    - Work is still in progress
+    - You want early feedback
+    - Tests are not yet passing
+    
+    Mark as draft when creating:
+    ```
+    Create pull request (dropdown) → Create draft pull request
+    ```
+  </Tab>
+  <Tab title="Ready PR">
+    Mark as ready when:
+    - All code is complete
+    - Tests pass
+    - Ready for final review
+    - Can be merged after approval
+  </Tab>
+</Tabs>
+
+## PR Review Process
+
+### What to Expect
+
+Once you submit your PR:
+
+<Steps>
+  <Step title="Automated Checks">
+    CI/CD pipelines run automatically:
+    - Build verification
+    - Test execution
+    - Code analysis
+    - Layering checks
+    
+    <Tip>
+    All checks must pass before the PR can be merged.
+    </Tip>
+  </Step>
+  
+  <Step title="Team Review">
+    VS Code team members will review your PR:
+    - Code quality
+    - Design decisions
+    - Test coverage
+    - Documentation
+  </Step>
+  
+  <Step title="Feedback & Iteration">
+    Address review feedback:
+    - Make requested changes
+    - Respond to questions
+    - Push new commits
+    
+    <Note>
+    Don't force-push after review starts - it makes it harder to see what changed.
+    </Note>
+  </Step>
+  
+  <Step title="Approval & Merge">
+    Once approved:
+    - Maintainer will merge the PR
+    - Changes will appear in the next VS Code release
+  </Step>
+</Steps>
+
+### Response Time
+
+<Tip>
+The VS Code team reviews PRs as time permits. Larger changes may take longer to review. Be patient and responsive to feedback.
+</Tip>
+
+You can help speed up the process by:
+- Keeping PRs focused and reasonably sized
+- Providing clear descriptions and test instructions
+- Responding promptly to review comments
+- Following coding guidelines
+
+## Responding to Feedback
+
+### Making Changes
+
+When reviewers request changes:
+
+1. **Make the requested changes** in your local branch
+2. **Commit the changes** with clear commit messages
+3. **Push to your fork** - the PR updates automatically
+
+```bash
+# Make changes
+git add .
+git commit -m "Address review feedback: improve error handling"
+git push origin your-feature-branch
+```
+
+<Warning>
+Avoid force-pushing (`git push -f`) after reviewers have started their review. This makes it difficult to see what changed in response to feedback.
+</Warning>
+
+### Discussing Feedback
+
+If you disagree with feedback or need clarification:
+
+- **Ask questions**: Use PR comments to discuss
+- **Explain your reasoning**: Share why you made certain choices
+- **Be open to learning**: Maintainers know the codebase well
+- **Stay professional**: Keep discussions respectful and constructive
+
+<Accordion title="Example Discussion">
+  Reviewer: "Consider using a Map instead of an object here for better performance."
+  
+  You: "Thanks for the suggestion! I chose an object because:
+  1. The keys are always strings in this case
+  2. The data set is small (< 10 items)
+  3. An object is more ergonomic for this use case
+  
+  However, if you think a Map would be better for consistency with other parts of the codebase, I'm happy to change it."
+  
+  This shows you:
+  - Considered the feedback
+  - Explained your reasoning
+  - Remained open to changing
+</Accordion>
+
+## Common Issues
+
+### Build Failures
+
+If CI builds fail:
+
+<AccordionGroup>
+  <Accordion title="TypeScript Compilation Errors">
+    ```bash
+    # Check for type errors locally
+    yarn watch
+    ```
+    Fix all compilation errors before pushing again.
+  </Accordion>
+  
+  <Accordion title="Test Failures">
+    ```bash
+    # Run tests locally
+    ./scripts/test.sh
+    
+    # Run specific test
+    ./scripts/test.sh --grep "test name"
+    ```
+    Ensure all tests pass in your local environment.
+  </Accordion>
+  
+  <Accordion title="Layering Violations">
+    ```bash
+    # Check for layer violations
+    npm run valid-layers-check
+    ```
+    Fix any violations by adjusting imports or moving code.
+  </Accordion>
+  
+  <Accordion title="Merge Conflicts">
+    ```bash
+    # Update from main and resolve conflicts
+    git checkout main
+    git pull upstream main
+    git checkout your-feature-branch
+    git rebase main
+    # Resolve conflicts, then:
+    git rebase --continue
+    git push -f origin your-feature-branch
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### PR Not Getting Attention
+
+If your PR hasn't received a review:
+
+<Steps>
+  <Step title="Ensure All Checks Pass">
+    Reviewers prioritize PRs with passing CI checks.
+  </Step>
+  <Step title="Check PR Size">
+    Very large PRs take longer to review. Consider splitting into smaller ones.
+  </Step>
+  <Step title="Verify Description">
+    Make sure you've filled out the PR template completely.
+  </Step>
+  <Step title="Be Patient">
+    The team reviews as time permits. Avoid repeatedly pinging for reviews.
+  </Step>
+</Steps>
+
+## Best Practices
+
+### Keep PRs Focused
+
+<Tip>
+One PR should address one issue or feature. This makes reviews faster and reduces the chance of merge conflicts.
+</Tip>
+
+```
+✅ Good: "Fix hover flickering in editor"
+❌ Bad: "Fix hover flickering, update TypeScript, and refactor workspace code"
+```
+
+### Write Clear Commit Messages
+
+Commit messages should explain the "why" not just the "what":
+
+<Tabs>
+  <Tab title="Good Commit Messages">
+    ```
+    Fix hover flickering caused by rapid redraws
+    
+    The hover widget was being destroyed and recreated
+    on every mousemove event, causing flickering.
+    Now we reuse the same widget instance.
+    
+    Fixes #12345
+    ```
+  </Tab>
+  <Tab title="Poor Commit Messages">
+    ```
+    fix bug
+    ```
+    
+    ```
+    update code
+    ```
+    
+    These provide no context about what changed or why.
+  </Tab>
+</Tabs>
+
+### Document Breaking Changes
+
+<Warning>
+If your PR introduces breaking changes, clearly document them in the description and consider if they're necessary.
+</Warning>
+
+Breaking changes should:
+- Be discussed in the related issue first
+- Include migration guidance
+- Be clearly marked in the PR description
+
+### Test Thoroughly
+
+Before submitting:
+
+1. **Manual testing**: Actually use the feature you built
+2. **Automated tests**: Run the full test suite
+3. **Edge cases**: Test unusual scenarios
+4. **Performance**: Ensure no performance regressions
+
+<Accordion title="Testing Checklist">
+  - [ ] Feature works as expected
+  - [ ] Existing features still work
+  - [ ] All unit tests pass
+  - [ ] All integration tests pass
+  - [ ] No console errors or warnings
+  - [ ] Works across different operating systems (if applicable)
+  - [ ] Performance is acceptable
+</Accordion>
+
+## After Your PR is Merged
+
+### Cleanup
+
+Once merged, you can:
+
+```bash
+# Delete your local branch
+git checkout main
+git branch -d your-feature-branch
+
+# Delete remote branch
+git push origin --delete your-feature-branch
+
+# Update your fork
+git pull upstream main
+git push origin main
+```
+
+### Track Your Contribution
+
+Your changes will:
+- Appear in the next VS Code release
+- Be included in the release notes (for significant changes)
+- Be attributed to you in the git history
+
+<Tip>
+Check the [release notes](https://code.visualstudio.com/updates) to see when your changes ship!
+</Tip>
+
+## Additional Resources
+
+<CardGroup cols={2}>
+  <Card title="How to Contribute" icon="book" href="/contributing/how-to-contribute">
+    Getting started guide
+  </Card>
+  <Card title="Coding Guidelines" icon="code" href="/contributing/coding-guidelines">
+    Code style standards
+  </Card>
+  <Card title="Issue Triaging" icon="list-check" href="/contributing/issue-triaging">
+    Understanding issue workflow
+  </Card>
+  <Card title="Wiki" icon="book-open" href="https://github.com/microsoft/vscode/wiki">
+    Comprehensive documentation
+  </Card>
+</CardGroup>
+
+## Questions?
+
+If you have questions about the PR process:
+
+- Review the [How to Contribute wiki](https://github.com/microsoft/vscode/wiki/How-to-Contribute)
+- Ask on [Stack Overflow](https://stackoverflow.com/questions/tagged/visual-studio-code)
+- Comment on the related issue
+- Join the [VS Code Dev Community](https://aka.ms/vscode-dev-community)
+
+<Note>
+Thank you for contributing to VS Code! Every contribution, large or small, helps make VS Code better for everyone.
+</Note>

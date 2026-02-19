@@ -1,0 +1,414 @@
+---
+title: Configuration Service
+description: Comprehensive guide to VS Code's Configuration Service for managing application and workspace settings
+---
+
+# Configuration Service
+
+The Configuration Service (`IConfigurationService`) is a core platform service that manages all configuration settings in Visual Studio Code. It provides access to user, workspace, and folder-specific settings with support for overrides and multiple configuration targets.
+
+## Service Overview
+
+The Configuration Service is defined in `src/vs/platform/configuration/common/configuration.ts:14` and provides a unified interface for reading and writing configuration values across different scopes.
+
+### Service Identifier
+
+```typescript
+export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
+```
+
+## Dependency Injection
+
+The Configuration Service is injected using VS Code's dependency injection system:
+
+```typescript
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
+export class MyService {
+  constructor(
+    @IConfigurationService private readonly configurationService: IConfigurationService
+  ) {}
+
+  public async initialize(): Promise<void> {
+    const autoSave = this.configurationService.getValue<string>('files.autoSave');
+    console.log(`Auto save mode: ${autoSave}`);
+  }
+}
+```
+
+## Core Methods
+
+### getValue()
+
+Retrieves configuration values with support for sections and overrides.
+
+<ParamField path="section" type="string" optional>
+  The configuration section to retrieve (e.g., `editor.fontSize`)
+</ParamField>
+
+<ParamField path="overrides" type="IConfigurationOverrides" optional>
+  Overrides for resource or override identifier
+</ParamField>
+
+```typescript
+// Get entire configuration
+const allConfig = configurationService.getValue();
+
+// Get specific section
+const fontSize = configurationService.getValue<number>('editor.fontSize');
+
+// Get with resource override
+const config = configurationService.getValue('editor', {
+  resource: URI.file('/path/to/file.ts')
+});
+
+// Get with language override
+const pythonConfig = configurationService.getValue('editor', {
+  overrideIdentifier: 'python'
+});
+```
+
+### updateValue()
+
+Updates configuration values at different targets (user, workspace, folder).
+
+<ParamField path="key" type="string" required>
+  The configuration key to update
+</ParamField>
+
+<ParamField path="value" type="unknown" required>
+  The new value (use `undefined` to remove)
+</ParamField>
+
+<ParamField path="target" type="ConfigurationTarget" optional>
+  Where to store the setting (USER, WORKSPACE, WORKSPACE_FOLDER, etc.)
+</ParamField>
+
+<ParamField path="overrides" type="IConfigurationOverrides" optional>
+  Resource or override identifiers for scoped updates
+</ParamField>
+
+```typescript
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+
+// Update user settings
+await configurationService.updateValue(
+  'editor.fontSize',
+  14,
+  ConfigurationTarget.USER
+);
+
+// Update workspace settings
+await configurationService.updateValue(
+  'files.autoSave',
+  'afterDelay',
+  ConfigurationTarget.WORKSPACE
+);
+
+// Remove a setting (set to default)
+await configurationService.updateValue(
+  'editor.tabSize',
+  undefined,
+  ConfigurationTarget.USER
+);
+
+// Update with resource override
+await configurationService.updateValue(
+  'editor.formatOnSave',
+  true,
+  { resource: URI.file('/path/to/file.ts') },
+  ConfigurationTarget.WORKSPACE_FOLDER
+);
+```
+
+### inspect()
+
+Inspects a configuration key to see values at all scopes.
+
+<ParamField path="key" type="string" required>
+  The configuration key to inspect
+</ParamField>
+
+<ParamField path="overrides" type="IConfigurationOverrides" optional>
+  Resource or override identifier context
+</ParamField>
+
+```typescript
+const inspected = configurationService.inspect<number>('editor.fontSize');
+
+console.log('Default value:', inspected.defaultValue);
+console.log('User value:', inspected.userValue);
+console.log('Workspace value:', inspected.workspaceValue);
+console.log('Workspace folder value:', inspected.workspaceFolderValue);
+console.log('Effective value:', inspected.value);
+```
+
+<Info>
+  The `inspect()` method is particularly useful for understanding configuration precedence and debugging why a particular value is active.
+</Info>
+
+### reloadConfiguration()
+
+Reloads configuration from disk.
+
+```typescript
+// Reload all configuration
+await configurationService.reloadConfiguration();
+
+// Reload specific target
+await configurationService.reloadConfiguration(ConfigurationTarget.USER);
+
+// Reload workspace folder
+await configurationService.reloadConfiguration(workspaceFolder);
+```
+
+### keys()
+
+Retrieves all configuration keys organized by scope.
+
+```typescript
+const keys = configurationService.keys();
+
+console.log('Default keys:', keys.default);
+console.log('User keys:', keys.user);
+console.log('Workspace keys:', keys.workspace);
+console.log('Workspace folder keys:', keys.workspaceFolder);
+console.log('Policy keys:', keys.policy);
+```
+
+## Configuration Targets
+
+Configuration can be stored at different levels:
+
+<Accordion title="ConfigurationTarget Enum">
+```typescript
+export const enum ConfigurationTarget {
+  APPLICATION = 1,    // Application-wide settings
+  USER,              // User settings (USER_LOCAL or USER_REMOTE)
+  USER_LOCAL,        // Local user settings
+  USER_REMOTE,       // Remote user settings
+  WORKSPACE,         // Workspace settings
+  WORKSPACE_FOLDER,  // Workspace folder settings
+  DEFAULT,           // Default settings (read-only)
+  MEMORY             // In-memory settings (temporary)
+}
+```
+
+Settings follow a precedence order (highest to lowest):
+1. `WORKSPACE_FOLDER` - Folder-specific settings
+2. `WORKSPACE` - Workspace settings
+3. `USER_REMOTE` - Remote user settings
+4. `USER_LOCAL` - Local user settings
+5. `APPLICATION` - Application settings
+6. `DEFAULT` - Default values
+</Accordion>
+
+## Configuration Overrides
+
+Overrides allow scoping configuration to specific contexts:
+
+<Accordion title="Resource-Based Overrides">
+```typescript
+// Get configuration for a specific file
+const config = configurationService.getValue('editor', {
+  resource: URI.file('/workspace/src/main.py')
+});
+
+// This will return workspace folder settings for that file
+```
+</Accordion>
+
+<Accordion title="Language-Based Overrides">
+```typescript
+// Get Python-specific settings
+const pythonSettings = configurationService.getValue('editor', {
+  overrideIdentifier: 'python'
+});
+
+// Settings like [python] in settings.json take precedence
+```
+</Accordion>
+
+## Events
+
+### onDidChangeConfiguration
+
+Fired when configuration changes.
+
+```typescript
+import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+
+const disposable = configurationService.onDidChangeConfiguration(
+  (event: IConfigurationChangeEvent) => {
+    // Check if specific setting changed
+    if (event.affectsConfiguration('editor.fontSize')) {
+      const newSize = configurationService.getValue<number>('editor.fontSize');
+      console.log('Font size changed to:', newSize);
+    }
+
+    // Check with overrides
+    if (event.affectsConfiguration('editor.formatOnSave', {
+      resource: myFileUri
+    })) {
+      console.log('Format on save changed for this file');
+    }
+
+    // Check what changed
+    console.log('Changed keys:', Array.from(event.affectedKeys));
+    console.log('Change source:', ConfigurationTarget[event.source]);
+  }
+);
+
+// Remember to dispose!
+disposable.dispose();
+```
+
+## Configuration Data Model
+
+<Accordion title="IConfigurationValue<T>">
+Represents a configuration value at all scopes:
+
+```typescript
+interface IConfigurationValue<T> {
+  readonly defaultValue?: T;           // Default value
+  readonly applicationValue?: T;        // Application scope
+  readonly userValue?: T;               // User scope (combined)
+  readonly userLocalValue?: T;          // Local user scope
+  readonly userRemoteValue?: T;         // Remote user scope
+  readonly workspaceValue?: T;          // Workspace scope
+  readonly workspaceFolderValue?: T;    // Workspace folder scope
+  readonly memoryValue?: T;             // In-memory value
+  readonly policyValue?: T;             // Policy value (managed)
+  readonly value?: T;                   // Effective value (resolved)
+  readonly overrideIdentifiers?: string[]; // Available overrides
+}
+```
+</Accordion>
+
+## Common Use Cases
+
+### Reading User Preferences
+
+```typescript
+export class EditorWidget {
+  constructor(
+    @IConfigurationService private configService: IConfigurationService
+  ) {
+    this.updateFromConfig();
+    
+    this.configService.onDidChangeConfiguration(e => {
+      if (e.affectsConfiguration('editor')) {
+        this.updateFromConfig();
+      }
+    });
+  }
+
+  private updateFromConfig(): void {
+    const fontSize = this.configService.getValue<number>('editor.fontSize');
+    const fontFamily = this.configService.getValue<string>('editor.fontFamily');
+    const tabSize = this.configService.getValue<number>('editor.tabSize');
+    
+    this.applySettings({ fontSize, fontFamily, tabSize });
+  }
+}
+```
+
+### Writing Settings Programmatically
+
+```typescript
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+
+export class SettingsManager {
+  constructor(
+    @IConfigurationService private configService: IConfigurationService
+  ) {}
+
+  async enableAutoSave(): Promise<void> {
+    await this.configService.updateValue(
+      'files.autoSave',
+      'afterDelay',
+      ConfigurationTarget.USER
+    );
+    
+    await this.configService.updateValue(
+      'files.autoSaveDelay',
+      1000,
+      ConfigurationTarget.USER
+    );
+  }
+
+  async setLanguageSpecific(language: string, settings: any): Promise<void> {
+    const key = `[${language}]`;
+    await this.configService.updateValue(
+      key,
+      settings,
+      ConfigurationTarget.USER
+    );
+  }
+}
+```
+
+### Respecting Workspace Settings
+
+```typescript
+export class FeatureService {
+  constructor(
+    @IConfigurationService private configService: IConfigurationService
+  ) {}
+
+  isFeatureEnabled(feature: string, resource?: URI): boolean {
+    // Get setting with resource context
+    const enabled = this.configService.getValue<boolean>(
+      `features.${feature}`,
+      { resource }
+    );
+    
+    return enabled ?? false;
+  }
+
+  async toggleFeature(feature: string, enabled: boolean): Promise<void> {
+    // Inspect to see where it's currently set
+    const inspected = this.configService.inspect<boolean>(`features.${feature}`);
+    
+    // Update at the most specific scope that's already configured
+    let target = ConfigurationTarget.USER;
+    if (inspected.workspaceFolderValue !== undefined) {
+      target = ConfigurationTarget.WORKSPACE_FOLDER;
+    } else if (inspected.workspaceValue !== undefined) {
+      target = ConfigurationTarget.WORKSPACE;
+    }
+    
+    await this.configService.updateValue(`features.${feature}`, enabled, target);
+  }
+}
+```
+
+## Best Practices
+
+<Note>
+  **Configuration Keys**: Use dot-notation for configuration keys (e.g., `editor.fontSize`, `files.autoSave`). This creates a logical hierarchy in the settings UI.
+</Note>
+
+<Note>
+  **Event Listeners**: Always dispose of configuration change listeners to prevent memory leaks. Use `affectsConfiguration()` to filter relevant changes.
+</Note>
+
+<Note>
+  **Resource Context**: When working with file-specific features, always pass the resource URI to `getValue()` to respect workspace folder settings.
+</Note>
+
+<Note>
+  **Undefined vs Null**: Setting a value to `undefined` removes it and falls back to defaults. Use `null` if you need to explicitly store a null value.
+</Note>
+
+## Related Services
+
+- **IWorkspaceContextService** - Provides workspace and folder context
+- **IEnvironmentService** - Provides paths to settings files
+- **IFileService** - Used internally to read/write settings files
+
+## See Also
+
+- [Configuration Registry](/api/registries/configuration-registry)
+- [Settings Editor](/api/editors/settings-editor)
+- [Workspace Service](/api/services/workspace-service)

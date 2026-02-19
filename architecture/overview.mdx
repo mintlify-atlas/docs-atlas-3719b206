@@ -1,0 +1,281 @@
+---
+title: Architecture Overview
+description: Comprehensive guide to Visual Studio Code's layered architecture
+---
+
+## Introduction
+
+Visual Studio Code is built with a carefully designed layered architecture that combines TypeScript, web technologies, and Electron to create a powerful, extensible code editor. The architecture emphasizes separation of concerns, testability, and cross-platform compatibility.
+
+## Architectural Layers
+
+VS Code is organized into distinct layers, each building upon the previous one:
+
+<Accordion title="Layer Hierarchy">
+  - **Base Layer** (`src/vs/base/`) - Foundation utilities and cross-platform abstractions
+  - **Platform Layer** (`src/vs/platform/`) - Platform services and dependency injection infrastructure
+  - **Editor Layer** (`src/vs/editor/`) - Text editor implementation with language services
+  - **Workbench Layer** (`src/vs/workbench/`) - Main application UI and features
+  - **Code Layer** (`src/vs/code/`) - Electron main process implementation
+</Accordion>
+
+## Core Principles
+
+The architecture follows these fundamental principles:
+
+### Layered Dependencies
+
+Each layer can only depend on layers below it. This ensures clean separation of concerns:
+
+```typescript
+// Valid: Workbench depends on Platform
+import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
+
+// Valid: Platform depends on Base
+import { Disposable } from '../../../base/common/lifecycle.js';
+
+// Invalid: Base cannot depend on Platform
+// This would violate the layering principle
+```
+
+<Note>
+VS Code enforces layering rules with the command `npm run valid-layers-check` during CI/CD.
+</Note>
+
+### Dependency Injection
+
+Services are injected through constructor parameters using decorators:
+
+```typescript
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IFileService } from 'vs/platform/files/common/files';
+
+export class MyClass {
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IFileService private readonly fileService: IFileService
+	) {
+		// Services are automatically injected
+	}
+}
+```
+
+<Info>
+All service parameters use the `@IServiceName` decorator pattern. Non-service parameters must come **after** service parameters in the constructor.
+</Info>
+
+### Contribution Model
+
+Features register themselves with central registries:
+
+```typescript
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
+
+// Register a contribution
+const registry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
+registry.registerWorkbenchContribution(MyContribution, LifecyclePhase.Ready);
+```
+
+### Cross-Platform Compatibility
+
+<Tabs>
+  <Tab title="Common">
+    Platform-independent code lives in `common/` directories:
+    ```typescript
+    // src/vs/base/common/event.ts
+    // Works everywhere: browser, Node.js, web workers
+    export interface Event<T> {
+        (listener: (e: T) => unknown): IDisposable;
+    }
+    ```
+  </Tab>
+  <Tab title="Browser">
+    Browser-specific code lives in `browser/` directories:
+    ```typescript
+    // src/vs/base/browser/dom.ts
+    export function addDisposableListener(
+        element: HTMLElement,
+        type: string,
+        handler: EventListener
+    ): IDisposable { /* ... */ }
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    Node.js-specific code lives in `node/` directories:
+    ```typescript
+    // src/vs/base/node/pfs.ts
+    import { promises as fs } from 'fs';
+    export const Promises = fs;
+    ```
+  </Tab>
+</Tabs>
+
+## Directory Structure
+
+The source code is organized as follows:
+
+```
+src/
+├── vs/
+│   ├── base/              # Base layer utilities
+│   │   ├── browser/       # Browser-specific utilities
+│   │   ├── common/        # Platform-independent utilities
+│   │   ├── node/          # Node.js-specific utilities
+│   │   └── parts/         # Reusable UI components
+│   ├── platform/          # Platform services
+│   │   ├── files/         # File system service
+│   │   ├── instantiation/ # Dependency injection
+│   │   ├── configuration/ # Configuration service
+│   │   └── [90+ services]
+│   ├── editor/            # Text editor
+│   │   ├── browser/       # Editor UI
+│   │   ├── common/        # Editor model
+│   │   └── contrib/       # Editor features
+│   ├── workbench/         # Application workbench
+│   │   ├── browser/       # Workbench UI
+│   │   ├── services/      # Workbench services
+│   │   ├── contrib/       # Feature contributions
+│   │   └── api/           # Extension API
+│   ├── code/              # Electron main process
+│   │   ├── electron-main/ # Main process code
+│   │   └── electron-browser/ # Renderer utilities
+│   └── server/            # Remote server
+```
+
+## Process Architecture
+
+<Accordion title="Multi-Process Model">
+VS Code uses a multi-process architecture powered by Electron:
+
+- **Main Process** - Manages windows, native menus, and system integration
+- **Renderer Process** - Runs the workbench UI (one per window)
+- **Extension Host Process** - Isolates extensions for stability
+- **Shared Process** - Handles background tasks (storage, telemetry)
+- **Pty Host Process** - Manages integrated terminal instances
+</Accordion>
+
+## Key Architectural Patterns
+
+### Events and Observables
+
+VS Code uses a custom event system from `src/vs/base/common/event.ts`:
+
+```typescript
+import { Event, Emitter } from 'vs/base/common/event';
+
+class Counter {
+	private _count = 0;
+	private readonly _onDidChange = new Emitter<number>();
+	readonly onDidChange: Event<number> = this._onDidChange.event;
+
+	increment(): void {
+		this._count++;
+		this._onDidChange.fire(this._count);
+	}
+}
+
+// Usage
+const counter = new Counter();
+const disposable = counter.onDidChange(count => {
+	console.log('Count:', count);
+});
+```
+
+### Disposables
+
+All resources must be properly disposed to prevent memory leaks:
+
+```typescript
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+
+class MyComponent extends Disposable {
+	constructor() {
+		super();
+		
+		// Register disposables immediately
+		this._register(someEventListener);
+		this._register(anotherResource);
+	}
+}
+
+// Or use DisposableStore
+const disposables = new DisposableStore();
+disposables.add(resource1);
+disposables.add(resource2);
+disposables.dispose(); // Clean up all at once
+```
+
+### Service Identifiers
+
+Services are identified by unique symbols created with `createDecorator`:
+
+```typescript
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export const IMyService = createDecorator<IMyService>('myService');
+
+export interface IMyService {
+	readonly _serviceBrand: undefined;
+	doSomething(): void;
+}
+```
+
+## Build System
+
+VS Code uses a custom build system:
+
+- **TypeScript Compilation** - Compiles `.ts` files to JavaScript
+- **Module System** - Uses AMD for dynamic loading
+- **Watch Mode** - Incremental compilation during development
+- **Minification** - Production builds are optimized and minified
+
+## Testing Strategy
+
+<Accordion title="Test Organization">
+- **Unit Tests** - Located in `src/vs/*/test/` directories
+- **Integration Tests** - Located in `test/` and extension test files
+- **Smoke Tests** - End-to-end tests for critical workflows
+</Accordion>
+
+## Extension Architecture
+
+Extensions run in isolated processes and communicate via IPC:
+
+```
+┌─────────────────┐         ┌──────────────────┐
+│   Main Process  │◄────────┤ Extension Host   │
+└────────┬────────┘         └──────────────────┘
+         │                           ▲
+         ▼                           │
+┌─────────────────┐                 │
+│ Renderer Process│─────────────────┘
+│   (Workbench)   │   Extension API
+└─────────────────┘
+```
+
+## Performance Considerations
+
+<Info>
+- **Lazy Loading** - Features load on demand using AMD modules
+- **Virtual Rendering** - Lists and trees render only visible items
+- **Web Workers** - CPU-intensive tasks run in background threads
+- **Startup Optimization** - Critical path is minimized for fast startup
+</Info>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Base Layer" icon="layer-group" href="/architecture/base-layer">
+    Explore foundation utilities and abstractions
+  </Card>
+  <Card title="Platform Layer" icon="cubes" href="/architecture/platform-layer">
+    Learn about services and dependency injection
+  </Card>
+  <Card title="Editor Layer" icon="code" href="/architecture/editor-layer">
+    Understand the text editor implementation
+  </Card>
+  <Card title="Workbench Layer" icon="window-maximize" href="/architecture/workbench-layer">
+    Discover the application structure
+  </Card>
+</CardGroup>

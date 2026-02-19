@@ -1,0 +1,261 @@
+---
+title: Workbench Overview
+description: Understanding the VS Code workbench architecture and structure
+---
+
+The **Workbench** is the main UI container for Visual Studio Code. It provides the foundation for all visual components, including the editor, sidebar, panels, and statusbar. Understanding the workbench architecture is essential for building extensions that integrate deeply with VS Code's UI.
+
+## What is the Workbench?
+
+The workbench (`src/vs/workbench/`) is responsible for:
+
+- **Lifecycle management** - Starting up, restoring state, and shutting down the application
+- **Layout management** - Organizing and positioning UI parts
+- **Service instantiation** - Creating and managing singleton services
+- **Contribution loading** - Loading and activating workbench contributions
+- **Event coordination** - Managing global events across the application
+
+<Note>
+The workbench follows a layered architecture where the platform layer provides core services, and the workbench layer builds the UI on top of it.
+</Note>
+
+## Workbench Architecture
+
+The workbench is structured into several key layers:
+
+### Core Workbench Class
+
+```typescript:src/vs/workbench/browser/workbench.ts
+export class Workbench extends Layout {
+
+	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
+	readonly onWillShutdown = this._onWillShutdown.event;
+
+	private readonly _onDidShutdown = this._register(new Emitter<void>());
+	readonly onDidShutdown = this._onDidShutdown.event;
+
+	constructor(
+		parent: HTMLElement,
+		private readonly options: IWorkbenchOptions | undefined,
+		private readonly serviceCollection: ServiceCollection,
+		logService: ILogService
+	) {
+		super(parent, { resetLayout: Boolean(options?.resetLayout) });
+		mark('code/willStartWorkbench');
+		this.registerErrorHandler(logService);
+	}
+
+	startup(): IInstantiationService {
+		// Configure services
+		const instantiationService = this.initServices(this.serviceCollection);
+		
+		// Initialize layout
+		// Register listeners
+		// Render workbench
+		// Restore state
+		
+		return instantiationService;
+	}
+}
+```
+
+The Workbench class extends Layout and coordinates the entire startup sequence.
+
+### Workbench Parts
+
+The workbench is divided into distinct **parts**, each responsible for a specific area of the UI:
+
+```typescript:src/vs/workbench/services/layout/browser/layoutService.ts
+export const enum Parts {
+	TITLEBAR_PART = 'workbench.parts.titlebar',
+	BANNER_PART = 'workbench.parts.banner',
+	ACTIVITYBAR_PART = 'workbench.parts.activitybar',
+	SIDEBAR_PART = 'workbench.parts.sidebar',
+	PANEL_PART = 'workbench.parts.panel',
+	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
+	EDITOR_PART = 'workbench.parts.editor',
+	STATUSBAR_PART = 'workbench.parts.statusbar'
+}
+```
+
+<Accordion title="Workbench Parts Description">
+
+| Part | Description | Location |
+|------|-------------|----------|
+| **Title Bar** | Window title, menus, and window controls | Top |
+| **Banner** | Notification banner area | Below title bar |
+| **Activity Bar** | Main navigation icons | Left or right side |
+| **Sidebar** | Contains views like Explorer, Search, SCM | Left or right side |
+| **Editor** | Main code editing area | Center |
+| **Panel** | Terminal, Output, Problems, Debug Console | Bottom or right |
+| **Auxiliary Bar** | Secondary sidebar for additional views | Opposite side of sidebar |
+| **Status Bar** | Status information, notifications, actions | Bottom |
+
+</Accordion>
+
+## Lifecycle Phases
+
+The workbench progresses through distinct lifecycle phases during startup:
+
+```typescript:src/vs/workbench/common/contributions.ts
+export const enum WorkbenchPhase {
+	/**
+	 * The first phase signals that we are about to startup getting ready.
+	 * Note: doing work in this phase blocks an editor from showing.
+	 */
+	BlockStartup = LifecyclePhase.Starting,
+
+	/**
+	 * Services are ready and the window is about to restore its UI state.
+	 * Note: doing work in this phase blocks an editor from showing.
+	 */
+	BlockRestore = LifecyclePhase.Ready,
+
+	/**
+	 * Views, panels and editors have restored.
+	 */
+	AfterRestored = LifecyclePhase.Restored,
+
+	/**
+	 * The last phase after everything has restored (2-5 seconds).
+	 */
+	Eventually = LifecyclePhase.Eventually
+}
+```
+
+<Info>
+**Best Practice**: Register contributions in the `AfterRestored` or `Eventually` phase to avoid blocking startup. Only use `BlockStartup` or `BlockRestore` for truly critical initialization.
+</Info>
+
+## Service Initialization
+
+The workbench uses **dependency injection** for service management:
+
+```typescript:src/vs/workbench/workbench.common.main.ts
+import { registerSingleton } from '../platform/instantiation/common/extensions.js';
+
+// Register core services
+registerSingleton(IContextViewService, ContextViewService, InstantiationType.Delayed);
+registerSingleton(IListService, ListService, InstantiationType.Delayed);
+registerSingleton(IMarkerService, MarkerService, InstantiationType.Delayed);
+registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Delayed);
+```
+
+Services are registered as singletons and instantiated on-demand or at specific lifecycle phases.
+
+## Entry Points
+
+The workbench has different entry points for different environments:
+
+<Tabs>
+  <Tab title="Web">
+    ```typescript:src/vs/workbench/workbench.web.main.ts
+    // Web workbench entry point
+    import './browser/workbench.contribution.js';
+    import './api/browser/extensionHost.contribution.js';
+    
+    // Web-specific services and contributions
+    ```
+  </Tab>
+  <Tab title="Desktop">
+    ```typescript:src/vs/workbench/workbench.desktop.main.ts
+    // Desktop workbench entry point
+    import './workbench.common.main.js';
+    
+    // Desktop-specific services and contributions
+    ```
+  </Tab>
+  <Tab title="Common">
+    ```typescript:src/vs/workbench/workbench.common.main.ts
+    // Common workbench entry point
+    // Shared between web and desktop
+    
+    // Core services
+    // Workbench parts
+    // Contributions
+    ```
+  </Tab>
+</Tabs>
+
+## Workbench Configuration
+
+The workbench can be configured during initialization:
+
+```typescript
+export interface IWorkbenchOptions {
+	/**
+	 * Extra classes to be added to the workbench container.
+	 */
+	extraClasses?: string[];
+
+	/**
+	 * Whether to reset the workbench parts layout on startup.
+	 */
+	resetLayout?: boolean;
+}
+```
+
+## Key Responsibilities
+
+### 1. Error Handling
+
+The workbench sets up global error handlers:
+
+```typescript
+private registerErrorHandler(logService: ILogService): void {
+	// Increase stack trace limit
+	if (!isFirefox) {
+		Error.stackTraceLimit = 100;
+	}
+
+	// Listen on unhandled rejection events
+	mainWindow.addEventListener('unhandledrejection', (event) => {
+		onUnexpectedError(event.reason);
+		event.preventDefault();
+	});
+
+	// Install handler for unexpected errors
+	setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
+}
+```
+
+### 2. State Persistence
+
+The workbench manages saving and restoring state:
+
+```typescript
+// Save state on focus loss
+this._register(hostService.onDidChangeFocus(focus => {
+	if (!focus) {
+		storageService.flush();
+	}
+}));
+```
+
+### 3. Font Rendering
+
+Optimizes font rendering and caching:
+
+```typescript
+private restoreFontInfo(storageService: IStorageService, configurationService: IConfigurationService): void {
+	const storedFontInfoRaw = storageService.get('editorFontInfo', StorageScope.APPLICATION);
+	if (storedFontInfoRaw) {
+		const storedFontInfo = JSON.parse(storedFontInfoRaw);
+		FontMeasurements.restoreFontInfo(mainWindow, storedFontInfo);
+	}
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Workbench Services" icon="gear" href="/workbench/services">
+    Learn about the service layer and dependency injection
+  </Card>
+  <Card title="Contributions" icon="puzzle-piece" href="/workbench/contributions">
+    Understand how to extend the workbench with contributions
+  </Card>
+  <Card title="Views and Panels" icon="window" href="/workbench/views-and-panels">
+    Create custom views and integrate with the sidebar and panel
+  </Card>
+</CardGroup>

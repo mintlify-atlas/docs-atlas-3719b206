@@ -1,0 +1,473 @@
+---
+title: "Authentication API"
+description: "Enable secure authentication flows in your VS Code extensions with support for multiple providers and OAuth"
+---
+
+The Authentication API allows extensions to request authentication sessions from authentication providers. This enables extensions to securely authenticate users and access protected resources on their behalf.
+
+## Overview
+
+VS Code's Authentication API supports:
+- Multiple authentication providers (GitHub, Microsoft, custom providers)
+- OAuth and OpenID Connect flows
+- Secure token management
+- Account switching and multiple sessions
+- Silent authentication flows
+
+## Authentication Namespace
+
+The `vscode.authentication` namespace provides methods for working with authentication:
+
+```typescript
+namespace authentication {
+  /**
+   * Get an authentication session matching the desired scopes.
+   */
+  export function getSession(
+    providerId: string,
+    scopes: readonly string[],
+    options?: AuthenticationGetSessionOptions
+  ): Thenable<AuthenticationSession | undefined>;
+
+  /**
+   * Register an authentication provider.
+   */
+  export function registerAuthenticationProvider(
+    id: string,
+    label: string,
+    provider: AuthenticationProvider,
+    options?: AuthenticationProviderOptions
+  ): Disposable;
+
+  /**
+   * Event fired when sessions change for a provider.
+   */
+  export const onDidChangeSessions: Event<AuthenticationSessionsChangeEvent>;
+}
+```
+
+## Core Interfaces
+
+### AuthenticationSession
+
+Represents an authentication session with an access token and associated account information:
+
+<Accordion title="AuthenticationSession Interface">
+```typescript
+interface AuthenticationSession {
+  /**
+   * The identifier of the authentication session.
+   */
+  readonly id: string;
+
+  /**
+   * The access token. This token should be used to authenticate requests to a service.
+   */
+  readonly accessToken: string;
+
+  /**
+   * The ID token. This token contains identity information about the user.
+   */
+  readonly idToken?: string;
+
+  /**
+   * The account associated with the session.
+   */
+  readonly account: AuthenticationSessionAccountInformation;
+
+  /**
+   * The permissions granted by the session's access token.
+   */
+  readonly scopes: readonly string[];
+}
+```
+</Accordion>
+
+### AuthenticationSessionAccountInformation
+
+Information about the account associated with a session:
+
+```typescript
+interface AuthenticationSessionAccountInformation {
+  /**
+   * The unique identifier of the account.
+   */
+  readonly id: string;
+
+  /**
+   * The human-readable name of the account.
+   */
+  readonly label: string;
+}
+```
+
+## Getting Authentication Sessions
+
+Use `authentication.getSession()` to request an authentication session from a provider.
+
+### Basic Usage
+
+```typescript
+import * as vscode from 'vscode';
+
+async function authenticateGitHub() {
+  const session = await vscode.authentication.getSession('github', ['repo', 'user'], {
+    createIfNone: true
+  });
+
+  if (session) {
+    console.log('Authenticated as:', session.account.label);
+    console.log('Access token:', session.accessToken);
+  }
+}
+```
+
+### Authentication Options
+
+<AccordionGroup>
+  <Accordion title="createIfNone">
+    Whether login should be performed if there is no matching session. If `true`, a modal dialog will be shown. If `false`, a numbered badge will be shown on the accounts menu.
+
+    ```typescript
+    const session = await vscode.authentication.getSession('github', ['repo'], {
+      createIfNone: true  // Show modal dialog immediately
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="forceNewSession">
+    Whether to reauthenticate even if there is already a session available. Useful for scenarios where the token needs to be re-minted.
+
+    ```typescript
+    const session = await vscode.authentication.getSession('github', ['repo'], {
+      forceNewSession: {
+        detail: 'We need additional permissions to access your repositories.'
+      }
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="silent">
+    Whether to show the indication to sign in. If `true`, no UI will be shown.
+
+    ```typescript
+    const session = await vscode.authentication.getSession('github', ['repo'], {
+      silent: true  // Don't show any UI prompts
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="clearSessionPreference">
+    Whether to clear the existing session preference. Useful when you want the user to be able to choose a different account.
+
+    ```typescript
+    const session = await vscode.authentication.getSession('github', ['repo'], {
+      clearSessionPreference: true,
+      createIfNone: true
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Using Authentication in Extensions
+
+### Example: GitHub API Access
+
+```typescript
+import * as vscode from 'vscode';
+import fetch from 'node-fetch';
+
+async function getUserRepositories() {
+  // Get a GitHub session with repo scope
+  const session = await vscode.authentication.getSession('github', ['repo'], {
+    createIfNone: true
+  });
+
+  if (!session) {
+    vscode.window.showErrorMessage('Authentication failed');
+    return;
+  }
+
+  // Use the access token to call GitHub API
+  const response = await fetch('https://api.github.com/user/repos', {
+    headers: {
+      'Authorization': `Bearer ${session.accessToken}`,
+      'Accept': 'application/vnd.github.v3+json'
+    }
+  });
+
+  const repos = await response.json();
+  console.log(`Found ${repos.length} repositories`);
+}
+```
+
+### Example: Microsoft Graph API
+
+```typescript
+async function getUserProfile() {
+  // Get a Microsoft session with User.Read scope
+  const session = await vscode.authentication.getSession('microsoft', ['User.Read'], {
+    createIfNone: true
+  });
+
+  if (!session) {
+    return;
+  }
+
+  // Call Microsoft Graph API
+  const response = await fetch('https://graph.microsoft.com/v1.0/me', {
+    headers: {
+      'Authorization': `Bearer ${session.accessToken}`
+    }
+  });
+
+  const profile = await response.json();
+  vscode.window.showInformationMessage(`Hello, ${profile.displayName}!`);
+}
+```
+
+## Handling Session Changes
+
+Listen to session changes to update your extension's state:
+
+```typescript
+const disposable = vscode.authentication.onDidChangeSessions(async (e) => {
+  if (e.provider.id === 'github') {
+    console.log('GitHub sessions changed');
+    
+    // Try to get the current session
+    const session = await vscode.authentication.getSession('github', ['repo'], {
+      silent: true
+    });
+    
+    if (session) {
+      // Session available - update UI
+      updateAuthenticatedState(session);
+    } else {
+      // Session removed - show signed out state
+      updateUnauthenticatedState();
+    }
+  }
+});
+```
+
+## Creating Custom Authentication Providers
+
+Extensions can register custom authentication providers to support custom OAuth flows or enterprise authentication systems.
+
+### AuthenticationProvider Interface
+
+<Accordion title="AuthenticationProvider Interface">
+```typescript
+interface AuthenticationProvider {
+  /**
+   * Event that fires when sessions change.
+   */
+  readonly onDidChangeSessions: Event<AuthenticationProviderAuthenticationSessionsChangeEvent>;
+
+  /**
+   * Get a list of sessions.
+   */
+  getSessions(scopes?: readonly string[]): Thenable<readonly AuthenticationSession[]>;
+
+  /**
+   * Create a new authentication session.
+   */
+  createSession(scopes: readonly string[]): Thenable<AuthenticationSession>;
+
+  /**
+   * Remove an authentication session.
+   */
+  removeSession(sessionId: string): Thenable<void>;
+}
+```
+</Accordion>
+
+### Registering a Provider
+
+```typescript
+import * as vscode from 'vscode';
+
+class CustomAuthProvider implements vscode.AuthenticationProvider {
+  private _onDidChangeSessions = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
+  public readonly onDidChangeSessions = this._onDidChangeSessions.event;
+  private _sessions: vscode.AuthenticationSession[] = [];
+
+  async getSessions(scopes?: readonly string[]): Promise<vscode.AuthenticationSession[]> {
+    // Return sessions that match the requested scopes
+    if (!scopes) {
+      return this._sessions;
+    }
+    return this._sessions.filter(session => 
+      scopes.every(scope => session.scopes.includes(scope))
+    );
+  }
+
+  async createSession(scopes: readonly string[]): Promise<vscode.AuthenticationSession> {
+    // Implement OAuth flow or custom authentication
+    const accessToken = await this.doOAuthFlow(scopes);
+    
+    const session: vscode.AuthenticationSession = {
+      id: generateId(),
+      accessToken,
+      account: {
+        id: 'user-id',
+        label: 'user@example.com'
+      },
+      scopes
+    };
+    
+    this._sessions.push(session);
+    this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
+    
+    return session;
+  }
+
+  async removeSession(sessionId: string): Promise<void> {
+    const sessionIndex = this._sessions.findIndex(s => s.id === sessionId);
+    if (sessionIndex > -1) {
+      const session = this._sessions.splice(sessionIndex, 1)[0];
+      this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+    }
+  }
+
+  private async doOAuthFlow(scopes: readonly string[]): Promise<string> {
+    // Implement your OAuth flow here
+    // This typically involves opening a browser, handling callbacks, etc.
+    return 'access-token';
+  }
+}
+
+export function activate(context: vscode.ExtensionContext) {
+  const provider = new CustomAuthProvider();
+  
+  const disposable = vscode.authentication.registerAuthenticationProvider(
+    'custom-provider',
+    'Custom Auth Provider',
+    provider,
+    { supportsMultipleAccounts: true }
+  );
+  
+  context.subscriptions.push(disposable);
+}
+```
+
+## Authentication Scopes
+
+Different providers support different scopes:
+
+### GitHub Scopes
+
+Common GitHub scopes:
+- `repo` - Full control of private repositories
+- `user` - Read/write access to profile info
+- `user:email` - Access to email addresses
+- `read:user` - Read access to profile info
+- `gist` - Create gists
+- `workflow` - Update GitHub Actions workflows
+
+### Microsoft Scopes
+
+Common Microsoft Graph scopes:
+- `User.Read` - Read user profile
+- `User.ReadWrite` - Read and write user profile
+- `Mail.Read` - Read user mail
+- `Mail.Send` - Send mail as the user
+- `Files.Read` - Read user files
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Request Minimal Scopes">
+    Only request the scopes your extension actually needs. Users are more likely to grant narrower permissions.
+
+    ```typescript
+    // Good: Request only what you need
+    const session = await vscode.authentication.getSession('github', ['repo']);
+
+    // Bad: Request unnecessary permissions
+    const session = await vscode.authentication.getSession('github', ['repo', 'admin:org', 'delete_repo']);
+    ```
+  </Accordion>
+
+  <Accordion title="Handle Authentication Failures Gracefully">
+    Users may deny authentication or close the dialog. Always check for undefined sessions.
+
+    ```typescript
+    const session = await vscode.authentication.getSession('github', ['repo'], {
+      createIfNone: true
+    });
+
+    if (!session) {
+      vscode.window.showWarningMessage('Authentication is required to use this feature');
+      return;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Use Silent Mode for Background Operations">
+    When checking for existing sessions in the background, use silent mode to avoid disturbing the user.
+
+    ```typescript
+    // Check for existing session without showing UI
+    const session = await vscode.authentication.getSession('github', ['repo'], {
+      silent: true
+    });
+
+    if (session) {
+      // Proceed with authenticated operation
+    } else {
+      // Show sign-in button in UI
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Cache Sessions">
+    Cache the session in your extension to avoid repeated authentication calls.
+
+    ```typescript
+    let cachedSession: vscode.AuthenticationSession | undefined;
+
+    async function getSession(): Promise<vscode.AuthenticationSession | undefined> {
+      if (cachedSession) {
+        return cachedSession;
+      }
+
+      cachedSession = await vscode.authentication.getSession('github', ['repo'], {
+        silent: true
+      });
+
+      return cachedSession;
+    }
+
+    // Clear cache when sessions change
+    vscode.authentication.onDidChangeSessions(() => {
+      cachedSession = undefined;
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Security Considerations
+
+<Warning>
+Always follow these security best practices when working with authentication:
+
+1. **Never log access tokens** - Access tokens are sensitive credentials
+2. **Use HTTPS for API calls** - Always use secure connections when using tokens
+3. **Validate token responses** - Check API responses for authentication errors
+4. **Handle token expiration** - Some tokens expire and need refresh
+5. **Clear tokens on sign out** - Remove cached tokens when users sign out
+6. **Respect token scopes** - Don't attempt operations outside granted scopes
+</Warning>
+
+## Related APIs
+
+<CardGroup cols={2}>
+  <Card title="Commands API" icon="terminal" href="/api/commands">
+    Register commands for authentication actions
+  </Card>
+  <Card title="Workspace API" icon="folder" href="/api/workspace">
+    Store authentication state in workspace settings
+  </Card>
+</CardGroup>

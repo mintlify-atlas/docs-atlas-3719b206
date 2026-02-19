@@ -1,0 +1,739 @@
+---
+title: 'Languages API'
+description: 'Provide language features like IntelliSense, diagnostics, and code actions in Visual Studio Code'
+---
+
+# Languages API
+
+The Languages API enables extensions to provide rich language features like IntelliSense, diagnostics, code actions, formatting, and more. This API allows you to enhance the editing experience for any programming language.
+
+## Namespace
+
+```typescript
+vscode.languages
+```
+
+All language-related functionality is available through the `languages` namespace.
+
+## Core Functions
+
+### Language Information
+
+```typescript
+// Get all known language identifiers
+const languages = await vscode.languages.getLanguages();
+console.log('Supported languages:', languages);
+
+// Change document language
+const document = vscode.window.activeTextEditor?.document;
+if (document) {
+    await vscode.languages.setTextDocumentLanguage(document, 'javascript');
+}
+
+// Match document against selector
+const score = vscode.languages.match(
+    { language: 'typescript', scheme: 'file' },
+    document
+);
+console.log('Match score:', score);
+```
+
+## Diagnostics
+
+### Creating a Diagnostic Collection
+
+```typescript
+const diagnosticCollection = vscode.languages.createDiagnosticCollection('myext');
+context.subscriptions.push(diagnosticCollection);
+
+// Set diagnostics for a file
+const uri = document.uri;
+const diagnostics: vscode.Diagnostic[] = [
+    {
+        range: new vscode.Range(0, 0, 0, 10),
+        message: 'This is an error',
+        severity: vscode.DiagnosticSeverity.Error,
+        source: 'my-linter',
+        code: 'E001'
+    }
+];
+
+diagnosticCollection.set(uri, diagnostics);
+
+// Clear diagnostics
+diagnosticCollection.clear();
+diagnosticCollection.delete(uri);
+```
+
+<ParamField path="range" type="Range" required>
+  The range to which this diagnostic applies
+</ParamField>
+
+<ParamField path="message" type="string" required>
+  The human-readable diagnostic message
+</ParamField>
+
+<ParamField path="severity" type="DiagnosticSeverity">
+  Error (0), Warning (1), Information (2), or Hint (3)
+</ParamField>
+
+<ParamField path="source" type="string">
+  Human-readable source of the diagnostic (e.g., 'eslint')
+</ParamField>
+
+<ParamField path="code" type="string | number">
+  Code or identifier for later processing
+</ParamField>
+
+### Diagnostic Events
+
+```typescript
+vscode.languages.onDidChangeDiagnostics(event => {
+    for (const uri of event.uris) {
+        const diagnostics = vscode.languages.getDiagnostics(uri);
+        console.log(`${uri}: ${diagnostics.length} diagnostics`);
+    }
+});
+
+// Get all diagnostics
+const allDiagnostics = vscode.languages.getDiagnostics();
+for (const [uri, diags] of allDiagnostics) {
+    console.log(`${uri}: ${diags.length}`);
+}
+```
+
+## IntelliSense Providers
+
+### Completion Provider
+
+```typescript
+const provider = vscode.languages.registerCompletionItemProvider(
+    'javascript',
+    {
+        provideCompletionItems(document, position, token, context) {
+            // Get word at position
+            const wordRange = document.getWordRangeAtPosition(position);
+            const word = wordRange ? document.getText(wordRange) : '';
+            
+            const completions: vscode.CompletionItem[] = [
+                {
+                    label: 'console',
+                    kind: vscode.CompletionItemKind.Property,
+                    insertText: new vscode.SnippetString('console.log($1)'),
+                    documentation: new vscode.MarkdownString('Log to console')
+                },
+                {
+                    label: 'function',
+                    kind: vscode.CompletionItemKind.Keyword,
+                    insertText: 'function ${1:name}($2) {\n\t$0\n}',
+                    detail: 'Function declaration'
+                }
+            ];
+            
+            return completions;
+        }
+    },
+    '.'  // Trigger character
+);
+
+context.subscriptions.push(provider);
+```
+
+<Tabs>
+  <Tab title="Simple Items">
+    ```typescript
+    const items = [
+        new vscode.CompletionItem('item1', vscode.CompletionItemKind.Function),
+        new vscode.CompletionItem('item2', vscode.CompletionItemKind.Variable)
+    ];
+    return items;
+    ```
+  </Tab>
+  <Tab title="With Details">
+    ```typescript
+    const item = new vscode.CompletionItem(
+        'myFunction',
+        vscode.CompletionItemKind.Function
+    );
+    item.detail = '(x: number): string';
+    item.documentation = 'Converts number to string';
+    item.insertText = new vscode.SnippetString('myFunction($1)');
+    item.command = {
+        title: 'Import',
+        command: 'editor.action.addImport'
+    };
+    ```
+  </Tab>
+  <Tab title="Resolve Provider">
+    ```typescript
+    {
+        provideCompletionItems(doc, pos) {
+            // Return lightweight items
+            return items.map(i => ({
+                label: i.name,
+                kind: vscode.CompletionItemKind.Function
+            }));
+        },
+        
+        resolveCompletionItem(item, token) {
+            // Add expensive details when selected
+            item.documentation = getDetailedDocs(item.label);
+            return item;
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Hover Provider
+
+```typescript
+vscode.languages.registerHoverProvider('javascript', {
+    provideHover(document, position, token) {
+        const range = document.getWordRangeAtPosition(position);
+        const word = document.getText(range);
+        
+        const markdown = new vscode.MarkdownString();
+        markdown.appendCodeblock(word, 'javascript');
+        markdown.appendText('\n\n');
+        markdown.appendMarkdown(`**Type:** ${typeof word}`);
+        markdown.isTrusted = true;
+        markdown.supportHtml = true;
+        
+        return new vscode.Hover(markdown, range);
+    }
+});
+```
+
+### Definition Provider
+
+```typescript
+vscode.languages.registerDefinitionProvider('typescript', {
+    provideDefinition(document, position, token) {
+        const range = document.getWordRangeAtPosition(position);
+        const symbol = document.getText(range);
+        
+        // Find definition location
+        const definitionUri = vscode.Uri.file('/path/to/definition.ts');
+        const definitionPosition = new vscode.Position(10, 5);
+        
+        return new vscode.Location(definitionUri, definitionPosition);
+        
+        // Or return multiple definitions
+        return [
+            new vscode.Location(uri1, pos1),
+            new vscode.Location(uri2, pos2)
+        ];
+    }
+});
+```
+
+## Code Actions
+
+### Code Action Provider
+
+```typescript
+vscode.languages.registerCodeActionsProvider(
+    'typescript',
+    {
+        provideCodeActions(document, range, context, token) {
+            const diagnostics = context.diagnostics;
+            const actions: vscode.CodeAction[] = [];
+            
+            // Quick fix for each diagnostic
+            for (const diagnostic of diagnostics) {
+                if (diagnostic.code === 'unused-var') {
+                    const action = new vscode.CodeAction(
+                        'Remove unused variable',
+                        vscode.CodeActionKind.QuickFix
+                    );
+                    action.diagnostics = [diagnostic];
+                    action.edit = new vscode.WorkspaceEdit();
+                    action.edit.delete(document.uri, diagnostic.range);
+                    action.isPreferred = true;
+                    
+                    actions.push(action);
+                }
+            }
+            
+            // Refactoring action
+            const refactor = new vscode.CodeAction(
+                'Extract to function',
+                vscode.CodeActionKind.RefactorExtract
+            );
+            refactor.edit = createExtractEdit(document, range);
+            actions.push(refactor);
+            
+            return actions;
+        }
+    },
+    {
+        providedCodeActionKinds: [
+            vscode.CodeActionKind.QuickFix,
+            vscode.CodeActionKind.RefactorExtract
+        ]
+    }
+);
+```
+
+<Note>
+Use `providedCodeActionKinds` metadata to filter when your provider is invoked, improving performance.
+</Note>
+
+## Formatting
+
+### Document Formatting
+
+```typescript
+vscode.languages.registerDocumentFormattingEditProvider('javascript', {
+    provideDocumentFormattingEdits(document, options, token) {
+        const edits: vscode.TextEdit[] = [];
+        const fullRange = new vscode.Range(
+            0,
+            0,
+            document.lineCount - 1,
+            document.lineAt(document.lineCount - 1).text.length
+        );
+        
+        // Format entire document
+        const formatted = formatCode(document.getText(), options);
+        edits.push(vscode.TextEdit.replace(fullRange, formatted));
+        
+        return edits;
+    }
+});
+```
+
+<ParamField path="options.tabSize" type="number" required>
+  Size of a tab in spaces
+</ParamField>
+
+<ParamField path="options.insertSpaces" type="boolean" required>
+  Prefer spaces over tabs
+</ParamField>
+
+### Range Formatting
+
+```typescript
+vscode.languages.registerDocumentRangeFormattingEditProvider('javascript', {
+    provideDocumentRangeFormattingEdits(document, range, options, token) {
+        const text = document.getText(range);
+        const formatted = formatCode(text, options);
+        
+        return [vscode.TextEdit.replace(range, formatted)];
+    },
+    
+    // Optional: format multiple ranges
+    provideDocumentRangesFormattingEdits(document, ranges, options, token) {
+        const edits: vscode.TextEdit[] = [];
+        
+        for (const range of ranges) {
+            const text = document.getText(range);
+            const formatted = formatCode(text, options);
+            edits.push(vscode.TextEdit.replace(range, formatted));
+        }
+        
+        return edits;
+    }
+});
+```
+
+### On-Type Formatting
+
+```typescript
+vscode.languages.registerOnTypeFormattingEditProvider(
+    'typescript',
+    {
+        provideOnTypeFormattingEdits(document, position, ch, options, token) {
+            // Format after typing ';'
+            if (ch === ';') {
+                const line = document.lineAt(position.line);
+                const formatted = formatLine(line.text, options);
+                
+                return [vscode.TextEdit.replace(line.range, formatted)];
+            }
+            return [];
+        }
+    },
+    ';',  // First trigger character (required)
+    '}'   // Additional trigger characters
+);
+```
+
+## Symbol Providers
+
+### Document Symbol Provider
+
+```typescript
+vscode.languages.registerDocumentSymbolProvider(
+    'typescript',
+    {
+        provideDocumentSymbols(document, token) {
+            const symbols: vscode.DocumentSymbol[] = [];
+            
+            // Parse document and create symbols
+            const classSymbol = new vscode.DocumentSymbol(
+                'MyClass',
+                'A sample class',
+                vscode.SymbolKind.Class,
+                new vscode.Range(0, 0, 10, 0),
+                new vscode.Range(0, 6, 0, 13)
+            );
+            
+            // Add children
+            classSymbol.children = [
+                new vscode.DocumentSymbol(
+                    'method1',
+                    'A method',
+                    vscode.SymbolKind.Method,
+                    new vscode.Range(2, 4, 5, 5),
+                    new vscode.Range(2, 4, 2, 11)
+                )
+            ];
+            
+            symbols.push(classSymbol);
+            return symbols;
+        }
+    },
+    { label: 'My Symbols' }  // Optional metadata
+);
+```
+
+### Workspace Symbol Provider
+
+```typescript
+vscode.languages.registerWorkspaceSymbolProvider({
+    provideWorkspaceSymbols(query, token) {
+        // Search across all workspace files
+        const symbols: vscode.SymbolInformation[] = [];
+        
+        // Add symbol
+        symbols.push(
+            new vscode.SymbolInformation(
+                'GlobalFunction',
+                vscode.SymbolKind.Function,
+                'module.ts',
+                new vscode.Location(
+                    vscode.Uri.file('/path/to/module.ts'),
+                    new vscode.Position(5, 0)
+                )
+            )
+        );
+        
+        return symbols;
+    }
+});
+```
+
+## Reference Providers
+
+<CodeGroup>
+```typescript Definition
+vscode.languages.registerDefinitionProvider('typescript', {
+    provideDefinition(document, position, token) {
+        const range = document.getWordRangeAtPosition(position);
+        const word = document.getText(range);
+        
+        // Return definition location
+        return new vscode.Location(
+            vscode.Uri.file('/path/to/def.ts'),
+            new vscode.Position(10, 5)
+        );
+    }
+});
+```
+
+```typescript References
+vscode.languages.registerReferenceProvider('typescript', {
+    provideReferences(document, position, context, token) {
+        const locations: vscode.Location[] = [];
+        
+        // Find all references
+        if (context.includeDeclaration) {
+            // Include the declaration
+            locations.push(new vscode.Location(uri, pos));
+        }
+        
+        // Add references
+        locations.push(
+            new vscode.Location(uri1, pos1),
+            new vscode.Location(uri2, pos2)
+        );
+        
+        return locations;
+    }
+});
+```
+
+```typescript Implementation
+vscode.languages.registerImplementationProvider('typescript', {
+    provideImplementation(document, position, token) {
+        // Return implementation locations
+        return [
+            new vscode.Location(implUri, implPos)
+        ];
+    }
+});
+```
+</CodeGroup>
+
+## Rename Provider
+
+```typescript
+vscode.languages.registerRenameProvider('typescript', {
+    provideRenameEdits(document, position, newName, token) {
+        const edit = new vscode.WorkspaceEdit();
+        
+        // Find all locations to rename
+        const locations = findReferences(document, position);
+        
+        for (const loc of locations) {
+            edit.replace(loc.uri, loc.range, newName);
+        }
+        
+        return edit;
+    },
+    
+    prepareRename(document, position, token) {
+        const range = document.getWordRangeAtPosition(position);
+        const text = document.getText(range);
+        
+        // Validate rename is allowed
+        if (!canRename(text)) {
+            throw new Error('Cannot rename this symbol');
+        }
+        
+        return {
+            range: range,
+            placeholder: text
+        };
+    }
+});
+```
+
+## Semantic Tokens
+
+### Semantic Tokens Provider
+
+```typescript
+const legend = new vscode.SemanticTokensLegend(
+    ['class', 'function', 'variable', 'parameter'],
+    ['declaration', 'readonly', 'static']
+);
+
+vscode.languages.registerDocumentSemanticTokensProvider(
+    'typescript',
+    {
+        provideDocumentSemanticTokens(document, token) {
+            const builder = new vscode.SemanticTokensBuilder(legend);
+            
+            // Add tokens
+            builder.push(
+                new vscode.Range(0, 0, 0, 5),  // range
+                'class',                        // token type
+                ['declaration']                 // modifiers
+            );
+            
+            builder.push(
+                new vscode.Range(2, 4, 2, 12),
+                'function',
+                ['static']
+            );
+            
+            return builder.build();
+        }
+    },
+    legend
+);
+```
+
+## Language Configuration
+
+### Setting Language Configuration
+
+```typescript
+vscode.languages.setLanguageConfiguration('javascript', {
+    comments: {
+        lineComment: '//',
+        blockComment: ['/*', '*/']
+    },
+    brackets: [
+        ['{', '}'],
+        ['[', ']'],
+        ['(', ')']
+    ],
+    wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
+    indentationRules: {
+        increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/,
+        decreaseIndentPattern: /^((?!.*?\/\*).*\*/)?\s*[\}\]].*$/
+    },
+    onEnterRules: [
+        {
+            beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+            afterText: /^\s*\*\/$/,
+            action: {
+                indentAction: vscode.IndentAction.IndentOutdent,
+                appendText: ' * '
+            }
+        }
+    ]
+});
+```
+
+## Advanced Providers
+
+### Code Lens Provider
+
+```typescript
+vscode.languages.registerCodeLensProvider('typescript', {
+    provideCodeLenses(document, token) {
+        const codeLenses: vscode.CodeLens[] = [];
+        
+        // Add code lens above functions
+        const topOfDocument = new vscode.Range(0, 0, 0, 0);
+        codeLenses.push(
+            new vscode.CodeLens(topOfDocument, {
+                title: 'Run All Tests',
+                command: 'extension.runAllTests',
+                arguments: [document.uri]
+            })
+        );
+        
+        return codeLenses;
+    },
+    
+    resolveCodeLens(codeLens, token) {
+        // Add command to unresolved code lens
+        codeLens.command = {
+            title: 'Click me',
+            command: 'extension.action'
+        };
+        return codeLens;
+    }
+});
+```
+
+### Signature Help Provider
+
+```typescript
+vscode.languages.registerSignatureHelpProvider(
+    'javascript',
+    {
+        provideSignatureHelp(document, position, token, context) {
+            const signatureHelp = new vscode.SignatureHelp();
+            
+            const signature = new vscode.SignatureInformation(
+                'function(param1: string, param2: number): void',
+                new vscode.MarkdownString('Function documentation')
+            );
+            
+            signature.parameters = [
+                new vscode.ParameterInformation('param1', 'First parameter'),
+                new vscode.ParameterInformation('param2', 'Second parameter')
+            ];
+            
+            signatureHelp.signatures = [signature];
+            signatureHelp.activeSignature = 0;
+            signatureHelp.activeParameter = determineActiveParameter(document, position);
+            
+            return signatureHelp;
+        }
+    },
+    {
+        triggerCharacters: ['(', ','],
+        retriggerCharacters: [',']
+    }
+);
+```
+
+### Document Link Provider
+
+```typescript
+vscode.languages.registerDocumentLinkProvider('markdown', {
+    provideDocumentLinks(document, token) {
+        const links: vscode.DocumentLink[] = [];
+        const text = document.getText();
+        
+        // Find all URLs in document
+        const regex = /https?:\/\/[^\s]+/g;
+        let match;
+        
+        while ((match = regex.exec(text)) !== null) {
+            const start = document.positionAt(match.index);
+            const end = document.positionAt(match.index + match[0].length);
+            const range = new vscode.Range(start, end);
+            
+            links.push(
+                new vscode.DocumentLink(range, vscode.Uri.parse(match[0]))
+            );
+        }
+        
+        return links;
+    },
+    
+    resolveDocumentLink(link, token) {
+        // Optionally resolve target
+        link.target = vscode.Uri.parse('https://resolved-url.com');
+        return link;
+    }
+});
+```
+
+## Inlay Hints
+
+```typescript
+vscode.languages.registerInlayHintsProvider('typescript', {
+    provideInlayHints(document, range, token) {
+        const hints: vscode.InlayHint[] = [];
+        
+        // Add type hint
+        const hint = new vscode.InlayHint(
+            new vscode.Position(5, 10),
+            ': string',
+            vscode.InlayHintKind.Type
+        );
+        hint.tooltip = 'Inferred type';
+        hint.paddingLeft = true;
+        
+        hints.push(hint);
+        return hints;
+    },
+    
+    resolveInlayHint(hint, token) {
+        // Add detailed information
+        hint.tooltip = new vscode.MarkdownString('**Type:** `string`');
+        return hint;
+    }
+});
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Performance">
+    - Return results quickly, use resolve methods for expensive operations
+    - Respect cancellation tokens
+    - Use document selectors to limit when providers are invoked
+    - Cache parsed results when appropriate
+  </Accordion>
+  
+  <Accordion title="User Experience">
+    - Provide meaningful documentation and details
+    - Use appropriate severity levels for diagnostics
+    - Mark preferred code actions
+    - Support both keyboard and mouse interactions
+  </Accordion>
+  
+  <Accordion title="Correctness">
+    - Validate positions and ranges
+    - Handle edge cases (empty files, large files)
+    - Provide accurate type information
+    - Test with various language constructs
+  </Accordion>
+</AccordionGroup>
+
+## Related APIs
+
+- **[Text Editor API](/api/text-editor)** - Access document content
+- **[Commands API](/api/commands)** - Execute actions from code lenses
+- **[Workspace API](/api/workspace)** - Search across workspace

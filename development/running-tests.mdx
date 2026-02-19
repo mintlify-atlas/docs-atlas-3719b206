@@ -1,0 +1,739 @@
+---
+title: Running Tests
+description: Comprehensive guide to running and writing tests for Visual Studio Code
+---
+
+## Overview
+
+VS Code has a comprehensive test suite covering unit tests, integration tests, extension tests, and smoke tests. Understanding how to run and write tests is essential for contributing to VS Code.
+
+<CardGroup cols={3}>
+  <Card title="Unit Tests" icon="flask">
+    Test individual components in isolation
+  </Card>
+  <Card title="Integration Tests" icon="network-wired">
+    Test interactions between components
+  </Card>
+  <Card title="Extension Tests" icon="puzzle-piece">
+    Test built-in extension functionality
+  </Card>
+</CardGroup>
+
+## Test Infrastructure
+
+### Test Locations
+
+<Tabs>
+  <Tab title="Unit Tests">
+    Unit tests are located alongside source files:
+
+    ```
+    src/
+      vs/
+        editor/
+          common/
+            model.ts
+            test/
+              model.test.ts      # Unit tests
+    ```
+
+    **Test Files**: `*.test.ts` in `test/` subdirectories
+
+    **Entry Point**: `test/unit/electron/index.js`
+  </Tab>
+
+  <Tab title="Integration Tests">
+    Integration tests are marked with `.integrationTest.ts`:
+
+    ```
+    src/
+      vs/
+        workbench/
+          services/
+            files/
+              test/
+                fileService.integrationTest.ts
+    ```
+
+    **Test Files**: `*.integrationTest.ts`
+
+    **Also**: Extension tests in `extensions/*/out/**/*.test.js`
+  </Tab>
+
+  <Tab title="Extension Tests">
+    Extension tests are in extension directories:
+
+    ```
+    extensions/
+      markdown-language-features/
+        out/
+          test/
+            *.test.js
+    ```
+
+    **Configuration**: `.vscode-test.js` at repository root
+
+    **Entry Points**: Defined per extension in config
+  </Tab>
+</Tabs>
+
+## Running Unit Tests
+
+### Command Line
+
+<Tabs>
+  <Tab title="Linux/macOS">
+    Run all unit tests:
+
+    ```bash
+    ./scripts/test.sh
+    ```
+
+    Run specific test file:
+
+    ```bash
+    ./scripts/test.sh --run src/vs/editor/test/common/model/model.test.ts
+    ```
+
+    Filter tests by name:
+
+    ```bash
+    ./scripts/test.sh --grep "should validate range"
+    ```
+
+    Run with debugger:
+
+    ```bash
+    ./scripts/test.sh --inspect-brk
+    ```
+  </Tab>
+
+  <Tab title="Windows">
+    Run all unit tests:
+
+    ```bash
+    .\scripts\test.bat
+    ```
+
+    Run specific test file:
+
+    ```bash
+    .\scripts\test.bat --run src\vs\editor\test\common\model\model.test.ts
+    ```
+
+    Filter tests by name:
+
+    ```bash
+    .\scripts\test.bat --grep "should validate range"
+    ```
+  </Tab>
+
+  <Tab title="npm scripts">
+    Run Node.js unit tests:
+
+    ```bash
+    npm run test-node
+    ```
+
+    Run browser unit tests:
+
+    ```bash
+    npm run test-browser
+    ```
+
+    Run without Playwright install:
+
+    ```bash
+    npm run test-browser-no-install
+    ```
+  </Tab>
+</Tabs>
+
+### Environment Setup
+
+The test script automatically:
+
+1. Checks for `node_modules` and runs `npm i` if needed
+2. Downloads Electron (unless `VSCODE_SKIP_PRELAUNCH=1`)
+3. Runs tests with Electron binary
+4. Saves crash reports to `.build/crashes`
+
+<Note>
+  Tests run in Electron to test both Node.js and browser APIs in the same environment as VS Code.
+</Note>
+
+## Running Integration Tests
+
+### Full Integration Test Suite
+
+<Tabs>
+  <Tab title="Linux/macOS">
+    ```bash
+    ./scripts/test-integration.sh
+    ```
+
+    This script runs:
+    1. Node.js integration tests (`**/*.integrationTest.js`)
+    2. Extension API tests (folder and workspace)
+    3. Colorize tests
+    4. Terminal suggest tests
+    5. Language feature tests (TypeScript, Markdown, etc.)
+    6. Git tests
+    7. Standalone tests (CSS, HTML)
+  </Tab>
+
+  <Tab title="Windows">
+    ```bash
+    .\scripts\test-integration.bat
+    ```
+  </Tab>
+
+  <Tab title="Individual Suites">
+    Run specific integration test suites:
+
+    ```bash
+    # Node.js integration tests only
+    ./scripts/test.sh --runGlob **/*.integrationTest.js
+
+    # API tests
+    npm run test-extension -- -l vscode-api-tests
+
+    # Markdown tests
+    npm run test-extension -- -l markdown-language-features
+
+    # Git tests
+    npm run test-extension -- -l git-base
+    ```
+  </Tab>
+</Tabs>
+
+### Test Configuration
+
+Integration tests use special arguments:
+
+```bash
+API_TESTS_EXTRA_ARGS="
+  --disable-telemetry
+  --disable-experiments
+  --skip-welcome
+  --skip-release-notes
+  --crash-reporter-directory=$VSCODECRASHDIR
+  --logsPath=$VSCODELOGSDIR
+  --no-cached-data
+  --disable-updates
+  --use-inmemory-secretstorage
+  --disable-extensions
+  --disable-workspace-trust
+  --user-data-dir=$VSCODEUSERDATADIR
+"
+```
+
+## Extension Tests
+
+### Using @vscode/test-cli
+
+The repository uses `@vscode/test-cli` for running extension tests, configured in `.vscode-test.js`:
+
+```javascript
+const extensions = [
+  {
+    label: 'markdown-language-features',
+    workspaceFolder: 'extensions/markdown-language-features/test-workspace',
+    mocha: { timeout: 60_000 }
+  },
+  {
+    label: 'vscode-api-tests-folder',
+    extensionDevelopmentPath: 'extensions/vscode-api-tests',
+    workspaceFolder: 'extensions/vscode-api-tests/testWorkspace',
+    files: 'extensions/vscode-api-tests/out/singlefolder-tests/**/*.test.js',
+  }
+];
+```
+
+### Running Extension Tests
+
+<CodeGroup>
+```bash Single Extension
+# Run tests for specific extension
+npm run test-extension -- -l markdown-language-features
+
+# Run with specific label
+npm run test-extension -- -l vscode-api-tests-folder
+```
+
+```bash All Extensions
+# Run all extension tests
+npm run test-extension
+```
+
+```bash From Source
+# Run TypeScript tests directly
+cd extensions/typescript-language-features
+npm run test
+```
+</CodeGroup>
+
+### Available Extension Tests
+
+<Tabs>
+  <Tab title="API Tests">
+    Test the VS Code Extension API:
+
+    ```bash
+    # Single folder tests
+    npm run test-extension -- -l vscode-api-tests-folder
+
+    # Workspace tests
+    npm run test-extension -- -l vscode-api-tests-workspace
+    ```
+
+    **Test Location**: `extensions/vscode-api-tests/out/`
+
+    **Coverage**: Commands, languages, workspace, debug API, etc.
+  </Tab>
+
+  <Tab title="Language Features">
+    Test language feature extensions:
+
+    ```bash
+    # Markdown
+    npm run test-extension -- -l markdown-language-features
+
+    # TypeScript (via integration test script)
+    # Included in ./scripts/test-integration.sh
+    ```
+
+    Standalone language server tests:
+
+    ```bash
+    # CSS
+    cd extensions/css-language-features/server
+    npm test
+
+    # HTML
+    cd extensions/html-language-features/server
+    npm test
+    ```
+  </Tab>
+
+  <Tab title="Other Extensions">
+    Test other built-in extensions:
+
+    ```bash
+    # Git
+    npm run test-extension -- -l git-base
+
+    # Colorize
+    npm run test-extension -- -l vscode-colorize-tests
+
+    # Terminal Suggest
+    npm run test-extension -- -l terminal-suggest
+
+    # Configuration Editing
+    npm run test-extension -- -l configuration-editing
+    ```
+  </Tab>
+</Tabs>
+
+## Web Tests
+
+Test VS Code in browser environments:
+
+<CodeGroup>
+```bash Integration Tests
+./scripts/test-web-integration.sh
+```
+
+```bash Remote Integration
+./scripts/test-remote-integration.sh
+```
+
+```bash Browser Unit Tests
+npm run test-browser
+```
+</CodeGroup>
+
+## Debugging Tests
+
+### VS Code Launch Configurations
+
+Use the pre-configured debug configurations:
+
+<Tabs>
+  <Tab title="All Unit Tests">
+    **Configuration**: `Debug Unit Tests`
+
+    1. Open Run and Debug view (`Cmd/Ctrl + Shift + D`)
+    2. Select "Debug Unit Tests"
+    3. Press `F5`
+
+    This runs all unit tests with the debugger attached.
+  </Tab>
+
+  <Tab title="Current File">
+    **Configuration**: `Debug Unit Tests (Current File)`
+
+    1. Open a test file (e.g., `model.test.ts`)
+    2. Select "Debug Unit Tests (Current File)"
+    3. Press `F5`
+
+    This runs only the tests in the current file.
+  </Tab>
+
+  <Tab title="Extension Tests">
+    Individual extension test configurations:
+
+    - **VS Code API Tests (single folder)**
+    - **VS Code API Tests (workspace)**
+    - **VS Code Git Tests**
+    - **VS Code Emmet Tests**
+    - **Markdown Extension Tests**
+    - **TypeScript Extension Tests**
+
+    Select from the debug dropdown and press `F5`.
+  </Tab>
+</Tabs>
+
+### Command Line Debugging
+
+<CodeGroup>
+```bash Inspect Mode
+# Pause at start
+./scripts/test.sh --inspect-brk
+
+# Attach debugger
+./scripts/test.sh --inspect
+```
+
+```bash Chrome DevTools
+# Tests will pause and print:
+# Debugger listening on ws://127.0.0.1:9229/...
+# Open chrome://inspect in Chrome to connect
+./scripts/test.sh --inspect-brk --grep "your test"
+```
+</CodeGroup>
+
+## Writing Tests
+
+### Unit Test Structure
+
+VS Code uses Mocha with a TDD-style interface:
+
+```typescript
+import * as assert from 'assert';
+import { Model } from 'vs/editor/common/model';
+
+suite('Editor Model', () => {
+    test('should create model', () => {
+        const model = new Model('hello world', 'text/plain');
+        assert.strictEqual(model.getValue(), 'hello world');
+    });
+
+    test('should handle edits', () => {
+        const model = new Model('hello', 'text/plain');
+        model.applyEdits([{
+            range: { startLineNumber: 1, startColumn: 6, endLineNumber: 1, endColumn: 6 },
+            text: ' world'
+        }]);
+        assert.strictEqual(model.getValue(), 'hello world');
+    });
+});
+```
+
+### Test Organization
+
+<Steps>
+  <Step title="Use suite() for grouping">
+    ```typescript
+    suite('Editor', () => {
+        suite('Model', () => {
+            test('basic operations', () => { /* ... */ });
+        });
+
+        suite('View', () => {
+            test('rendering', () => { /* ... */ });
+        });
+    });
+    ```
+  </Step>
+
+  <Step title="Use test() for individual tests">
+    ```typescript
+    test('should do something specific', () => {
+        // Arrange
+        const input = createInput();
+
+        // Act
+        const result = processInput(input);
+
+        // Assert
+        assert.strictEqual(result, expected);
+    });
+    ```
+  </Step>
+
+  <Step title="Use setup() and teardown()">
+    ```typescript
+    suite('FileService', () => {
+        let service: FileService;
+
+        setup(() => {
+            service = new FileService();
+        });
+
+        teardown(() => {
+            service.dispose();
+        });
+
+        test('should read file', async () => {
+            const content = await service.readFile(uri);
+            assert.ok(content);
+        });
+    });
+    ```
+  </Step>
+</Steps>
+
+### Best Practices
+
+<AccordionGroup>
+  <Accordion title="Minimize Assertions">
+    Prefer one comprehensive assertion over multiple precise ones:
+
+    ```typescript
+    // Good: Single snapshot-style assertion
+    test('should transform data', () => {
+        const result = transform(input);
+        assert.deepStrictEqual(result, {
+            id: 1,
+            name: 'test',
+            values: [1, 2, 3]
+        });
+    });
+
+    // Avoid: Multiple assertions
+    test('should transform data', () => {
+        const result = transform(input);
+        assert.strictEqual(result.id, 1);
+        assert.strictEqual(result.name, 'test');
+        assert.strictEqual(result.values.length, 3);
+    });
+    ```
+
+    <Note>
+      This makes tests easier to understand and update when requirements change.
+    </Note>
+  </Accordion>
+
+  <Accordion title="Add to Correct Suite">
+    Always add tests to existing suites instead of creating new files:
+
+    ```typescript
+    // Find the appropriate suite
+    suite('Editor Model - Existing Suite', () => {
+        // Add your test here
+        test('new test case', () => {
+            // ...
+        });
+    });
+    ```
+
+    Don't create a new test file unless testing a new component.
+  </Accordion>
+
+  <Accordion title="Use Async/Await">
+    For asynchronous tests:
+
+    ```typescript
+    test('should load file asynchronously', async () => {
+        const content = await fileService.readFile(uri);
+        assert.ok(content.value.length > 0);
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Test Error Cases">
+    Don't just test the happy path:
+
+    ```typescript
+    test('should throw on invalid input', () => {
+        assert.throws(() => {
+            processInput(null);
+        }, /Invalid input/);
+    });
+
+    test('should handle async errors', async () => {
+        await assert.rejects(
+            async () => await loadFile('nonexistent'),
+            /File not found/
+        );
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Clean Up Resources">
+    Always dispose of resources:
+
+    ```typescript
+    test('should use service', () => {
+        const service = new MyService();
+        try {
+            // Test code
+            assert.ok(service.doSomething());
+        } finally {
+            service.dispose();
+        }
+    });
+
+    // Or use teardown
+    suite('Service Tests', () => {
+        let service: MyService;
+
+        setup(() => {
+            service = new MyService();
+        });
+
+        teardown(() => {
+            service.dispose();
+        });
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Integration Test Example
+
+Integration tests use the full VS Code API:
+
+```typescript
+import * as vscode from 'vscode';
+import * as assert from 'assert';
+
+suite('Markdown Extension Integration Tests', () => {
+    test('should provide completions', async () => {
+        const doc = await vscode.workspace.openTextDocument({
+            content: '# Hello\n\n',
+            language: 'markdown'
+        });
+
+        const editor = await vscode.window.showTextDocument(doc);
+        const position = new vscode.Position(1, 0);
+
+        const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
+            'vscode.executeCompletionItemProvider',
+            doc.uri,
+            position
+        );
+
+        assert.ok(completions);
+        assert.ok(completions.items.length > 0);
+    });
+});
+```
+
+## Smoke Tests
+
+Smoke tests verify basic functionality in a real environment:
+
+<CodeGroup>
+```bash Run Smoke Tests
+npm run smoketest
+```
+
+```bash Without Compilation
+npm run smoketest-no-compile
+```
+
+```bash Custom Build
+cd test/smoke
+node test/index.js -l /path/to/vscode/build
+```
+</CodeGroup>
+
+**Smoke Test Location**: `test/smoke/`
+
+**Coverage**: File operations, editor features, extensions, settings, etc.
+
+## CI/CD Test Execution
+
+Tests run automatically in CI/CD:
+
+<Tabs>
+  <Tab title="Core CI">
+    ```bash
+    npm run core-ci        # Full test suite
+    npm run core-ci-pr     # PR validation
+    ```
+
+    Runs:
+    - Unit tests
+    - Integration tests
+    - Code hygiene checks
+    - Layer validation
+  </Tab>
+
+  <Tab title="Extensions CI">
+    ```bash
+    npm run extensions-ci     # All extensions
+    npm run extensions-ci-pr  # PR validation
+    ```
+
+    Runs:
+    - Extension tests
+    - Extension compilation
+    - Extension hygiene
+  </Tab>
+</Tabs>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Tests Fail Locally but Pass in CI">
+    - Check Node.js version matches CI
+    - Ensure clean git state: `git clean -xfd`
+    - Rebuild: `npm run compile`
+    - Check for OS-specific issues
+  </Accordion>
+
+  <Accordion title="Tests Time Out">
+    - Increase timeout in test:
+      ```typescript
+      test('slow test', async function() {
+          this.timeout(10000); // 10 seconds
+          // ...
+      });
+      ```
+    - Check for deadlocks or infinite loops
+    - Run with `--inspect-brk` to debug
+  </Accordion>
+
+  <Accordion title="Extension Tests Fail">
+    - Ensure extension is compiled: `npm run watch-extensions`
+    - Check workspace folder exists
+    - Verify extension activation events
+    - Check logs in `.build/logs/integration-tests`
+  </Accordion>
+
+  <Accordion title="Cannot Find Module Errors">
+    - Run `npm install`
+    - Clear cache: `rm -rf out node_modules/.cache`
+    - Recompile: `npm run compile`
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Debugging" icon="bug" href="/development/debugging">
+    Learn how to debug tests
+  </Card>
+  <Card title="Development Workflow" icon="code" href="/development/development-workflow">
+    Understand the development process
+  </Card>
+  <Card title="Building from Source" icon="hammer" href="/development/building-from-source">
+    Review build instructions
+  </Card>
+  <Card title="Mocha Documentation" icon="book" href="https://mochajs.org">
+    Learn more about Mocha testing framework
+  </Card>
+</CardGroup>

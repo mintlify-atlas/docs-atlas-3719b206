@@ -1,80 +1,288 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: "Quick Start"
+description: "Get productive with Visual Studio Code in under 5 minutes"
 ---
 
-## Get started in three steps
+## Get Started with VS Code
 
-Get your documentation site running locally and make your first customization.
+This guide will walk you through installing VS Code, opening your first project, and using the essential features you'll need every day.
 
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+<Steps>
+  <Step title="Download and Install">
+    Download VS Code for your platform from [code.visualstudio.com](https://code.visualstudio.com/Download).
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    <Tabs>
+      <Tab title="Windows">
+        1. Download the Windows installer (.exe)
+        2. Run the installer
+        3. Follow the installation wizard
+        4. Launch VS Code from the Start menu
+      </Tab>
+      <Tab title="macOS">
+        1. Download the .zip file
+        2. Open the .zip file to extract the app
+        3. Drag Visual Studio Code.app to Applications
+        4. Launch from Launchpad or Spotlight
+      </Tab>
+      <Tab title="Linux">
+        1. Download the .deb or .rpm package
+        2. Install using your package manager
+        3. Or download the .tar.gz and extract it
+        4. Run `code` from terminal
+      </Tab>
+    </Tabs>
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    <Note>
+      For detailed installation instructions, see the [Installation Guide](/installation).
+    </Note>
+  </Step>
 
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+  <Step title="Open a Project">
+    Start working with your code by opening a folder or file.
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    **Open a folder:**
+    1. Click **File** > **Open Folder** (or `Ctrl+K Ctrl+O` on Windows/Linux, `Cmd+K Cmd+O` on macOS)
+    2. Select your project folder
+    3. VS Code will load your project and show the file explorer on the left
+    
+    **Open a file:**
+    - Click **File** > **Open File** (or `Ctrl+O` / `Cmd+O`)
+    - Select any file to start editing
+    
+    <Tip>
+      You can also drag and drop folders or files directly into VS Code.
+    </Tip>
+  </Step>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+  <Step title="Edit Your Code">
+    VS Code provides powerful editing features out of the box.
+    
+    **IntelliSense:**
+    - Start typing to see smart code completions
+    - Press `Ctrl+Space` to trigger IntelliSense manually
+    - Get inline documentation for functions and methods
+    
+    **Quick Navigation:**
+    - `Ctrl+P` / `Cmd+P` - Quick Open: Jump to any file
+    - `Ctrl+Shift+O` / `Cmd+Shift+O` - Go to Symbol: Navigate within a file
+    - `F12` - Go to Definition: Jump to where something is defined
+    - `Shift+F12` - Find All References: See all uses of a symbol
+    
+    **Multi-cursor Editing:**
+    - `Alt+Click` / `Option+Click` - Add cursor at clicked position
+    - `Ctrl+Alt+Up/Down` / `Cmd+Option+Up/Down` - Add cursor above/below
+    - `Ctrl+D` / `Cmd+D` - Select next occurrence
+  </Step>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+  <Step title="Use the Integrated Terminal">
+    Access your command line without leaving the editor.
+    
+    1. Press `` Ctrl+` `` or click **Terminal** > **New Terminal**
+    2. Run any command in your project directory
+    3. Create multiple terminals with the + button
+    4. Split terminals with the split icon
+    
+    <CodeGroup>
+    ```bash Terminal Commands
+    # Navigate and run your project
+    npm install
+    npm run dev
+    
+    # Run tests
+    npm test
+    
+    # Git commands
+    git status
+    git add .
+    git commit -m "Initial commit"
+    ```
+    </CodeGroup>
+  </Step>
 
-### Step 3: Go live
+  <Step title="Run and Debug">
+    Debug your code with breakpoints and an interactive debugger.
+    
+    **Quick Start:**
+    1. Open a file you want to debug
+    2. Click in the left margin to set a breakpoint (red dot appears)
+    3. Press `F5` to start debugging
+    4. VS Code will prompt you to select a debug configuration
+    
+    **Debug Controls:**
+    - `F5` - Continue / Start
+    - `F10` - Step Over
+    - `F11` - Step Into
+    - `Shift+F11` - Step Out
+    - `Shift+F5` - Stop
+    
+    <Note>
+      For Node.js projects, VS Code can debug without any configuration. For other languages, you may need to install an extension.
+    </Note>
+  </Step>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+  <Step title="Install Extensions">
+    Extend VS Code with language support, themes, and tools.
+    
+    1. Click the Extensions icon in the sidebar (or press `Ctrl+Shift+X` / `Cmd+Shift+X`)
+    2. Search for the extension you need
+    3. Click **Install**
+    
+    **Popular Extensions:**
+    - **Python** - Rich Python language support
+    - **ESLint** - JavaScript and TypeScript linting
+    - **Prettier** - Code formatter
+    - **GitLens** - Supercharge Git capabilities
+    - **Live Share** - Real-time collaborative editing
+    
+    <Tip>
+      Extensions run in separate processes and won't slow down your editor.
+    </Tip>
+  </Step>
+</Steps>
 
-## Next steps
+## Essential Keyboard Shortcuts
 
-Now that you have your docs running, explore these key features:
+Master these shortcuts to boost your productivity:
 
 <CardGroup cols={2}>
+  <Card title="File Navigation" icon="folder">
+    - `Ctrl/Cmd+P` - Quick Open
+    - `Ctrl/Cmd+Tab` - Switch between open files
+    - `Ctrl/Cmd+W` - Close file
+    - `Ctrl/Cmd+Shift+T` - Reopen closed file
+  </Card>
+  
+  <Card title="Editing" icon="pencil">
+    - `Ctrl/Cmd+D` - Select next occurrence
+    - `Ctrl/Cmd+/` - Toggle comment
+    - `Alt/Option+Up/Down` - Move line up/down
+    - `Shift+Alt/Option+Up/Down` - Copy line up/down
+  </Card>
+  
+  <Card title="Search & Replace" icon="magnifying-glass">
+    - `Ctrl/Cmd+F` - Find in file
+    - `Ctrl/Cmd+H` - Replace in file
+    - `Ctrl/Cmd+Shift+F` - Find in files
+    - `Ctrl/Cmd+Shift+H` - Replace in files
+  </Card>
+  
+  <Card title="View" icon="window">
+    - `Ctrl/Cmd+B` - Toggle sidebar
+    - `` Ctrl/Cmd+` `` - Toggle terminal
+    - `Ctrl/Cmd+Shift+E` - Explorer
+    - `Ctrl/Cmd+Shift+D` - Debug
+  </Card>
+</CardGroup>
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+## Quick Tips
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+<AccordionGroup>
+  <Accordion icon="command" title="Command Palette">
+    Press `Ctrl+Shift+P` / `Cmd+Shift+P` to open the Command Palette. This gives you access to all VS Code commands. Try typing:
+    - "Format Document" - Format your code
+    - "Change Language Mode" - Change file language
+    - "Preferences: Color Theme" - Switch themes
+  </Accordion>
+  
+  <Accordion icon="gear" title="Settings">
+    Open settings with `Ctrl+,` / `Cmd+,`. You can:
+    - Search for any setting
+    - Customize editor behavior
+    - Configure language-specific settings
+    - Sync settings across devices
+  </Accordion>
+  
+  <Accordion icon="git" title="Git Integration">
+    VS Code has built-in Git support:
+    - Click the Source Control icon (or press `Ctrl/Cmd+Shift+G`)
+    - Stage changes by clicking the + icon
+    - Write a commit message and press `Ctrl/Cmd+Enter`
+    - Push/pull with the ... menu
+  </Accordion>
+  
+  <Accordion icon="code-compare" title="Side by Side Editing">
+    - Drag a file from the Explorer to split the editor
+    - Or right-click a file and select "Open to the Side"
+    - Use `Ctrl/Cmd+\` to split the active editor
+    - Press `Ctrl/Cmd+1/2/3` to focus different editor groups
+  </Accordion>
+</AccordionGroup>
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
+## Example Workflow
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
+Here's a complete example of opening a Node.js project and running it:
 
+<CodeGroup>
+```bash Terminal
+# Clone a repository
+git clone https://github.com/example/project.git
+cd project
+
+# Open in VS Code
+code .
+```
+
+```javascript app.js
+// Edit your code with IntelliSense
+const express = require('express');
+const app = express();
+
+app.get('/', (req, res) => {
+  res.send('Hello World!');
+});
+
+app.listen(3000, () => {
+  console.log('Server running on port 3000');
+});
+```
+
+```bash Run and Debug
+# Use the integrated terminal
+npm install
+npm start
+
+# Or press F5 to debug with breakpoints
+```
+</CodeGroup>
+
+## Next Steps
+
+Now that you're familiar with the basics, explore more advanced features:
+
+<CardGroup cols={2}>
+  <Card
+    title="Installation Options"
+    icon="download"
+    href="/installation"
+  >
+    Learn about different installation methods and options
+  </Card>
+  
+  <Card
+    title="Architecture"
+    icon="sitemap"
+    href="/concepts/architecture"
+  >
+    Understand how VS Code is built
+  </Card>
+  
+  <Card
+    title="Contributing"
+    icon="code-pull-request"
+    href="/contributing/how-to-contribute"
+  >
+    Contribute to the VS Code project
+  </Card>
+  
+  <Card
+    title="Build from Source"
+    icon="hammer"
+    href="/development"
+  >
+    Build and debug VS Code itself
+  </Card>
 </CardGroup>
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  **Need help?** Visit [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode) or check out the [GitHub issues](https://github.com/microsoft/vscode/issues).
 </Note>

@@ -1,0 +1,243 @@
+---
+title: 'VS Code Extension API Overview'
+description: 'Overview of the Visual Studio Code Extension API and its capabilities'
+---
+
+# VS Code Extension API Overview
+
+The Visual Studio Code Extension API allows you to extend and customize VS Code. This comprehensive API provides access to the editor's core functionality, enabling you to create powerful extensions.
+
+## API Namespaces
+
+The VS Code API is organized into several namespaces, each providing specific functionality:
+
+### Core Namespaces
+
+<CardGroup cols={2}>
+  <Card title="commands" icon="terminal" href="/api/commands">
+    Register and execute commands
+  </Card>
+  <Card title="window" icon="window" href="/api/text-editor">
+    Interact with the editor window and UI
+  </Card>
+  <Card title="workspace" icon="folder" href="/api/workspace">
+    Access workspace folders and files
+  </Card>
+  <Card title="languages" icon="code" href="/api/languages">
+    Provide language features like IntelliSense
+  </Card>
+</CardGroup>
+
+<CardGroup cols={2}>
+  <Card title="debug" icon="bug" href="/api/debugging">
+    Integrate debugging capabilities
+  </Card>
+  <Card title="authentication" icon="shield" href="/api/authentication">
+    Implement authentication providers
+  </Card>
+  <Card title="webview" icon="browser" href="/api/webview">
+    Create custom webview panels
+  </Card>
+  <Card title="env" icon="gear">
+    Access environment information
+  </Card>
+</CardGroup>
+
+## Getting Started
+
+Every VS Code extension exports an `activate` function that receives an `ExtensionContext` object:
+
+```typescript
+import * as vscode from 'vscode';
+
+export function activate(context: vscode.ExtensionContext) {
+    console.log('Extension activated');
+    
+    // Register commands, providers, etc.
+    let disposable = vscode.commands.registerCommand('extension.helloWorld', () => {
+        vscode.window.showInformationMessage('Hello World!');
+    });
+    
+    context.subscriptions.push(disposable);
+}
+
+export function deactivate() {
+    // Cleanup resources
+}
+```
+
+## Extension Manifest
+
+Extensions are defined by a `package.json` file that specifies activation events, contributions, and dependencies:
+
+```json package.json
+{
+  "name": "my-extension",
+  "displayName": "My Extension",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "activationEvents": [
+    "onCommand:extension.helloWorld"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.helloWorld",
+        "title": "Hello World"
+      }
+    ]
+  }
+}
+```
+
+## Core Concepts
+
+### Disposables
+
+Many VS Code APIs return `Disposable` objects that must be disposed to prevent memory leaks:
+
+```typescript
+const disposable = vscode.commands.registerCommand('my.command', () => {});
+context.subscriptions.push(disposable);
+
+// Or manually dispose:
+disposable.dispose();
+```
+
+<Note>
+Always add disposables to `context.subscriptions` to ensure they're properly cleaned up when your extension is deactivated.
+</Note>
+
+### Promises and Thenables
+
+Most async operations return `Thenable<T>` (Promise-compatible):
+
+```typescript
+vscode.workspace.openTextDocument(uri).then(document => {
+    return vscode.window.showTextDocument(document);
+}).then(editor => {
+    console.log('Document opened in editor');
+});
+
+// Or with async/await:
+const document = await vscode.workspace.openTextDocument(uri);
+const editor = await vscode.window.showTextDocument(document);
+```
+
+### Events
+
+The API uses an event-driven model. Subscribe to events using the `Event<T>` interface:
+
+```typescript
+vscode.workspace.onDidSaveTextDocument(document => {
+    console.log(`Document saved: ${document.uri}`);
+});
+
+vscode.window.onDidChangeActiveTextEditor(editor => {
+    if (editor) {
+        console.log(`Active editor changed to: ${editor.document.fileName}`);
+    }
+});
+```
+
+## API Versioning
+
+The API version is specified in your `package.json`:
+
+```json
+"engines": {
+  "vscode": "^1.80.0"
+}
+```
+
+<ParamField path="version" type="string" required>
+  Minimum VS Code version required (semver format)
+</ParamField>
+
+This ensures your extension only runs on compatible VS Code versions.
+
+## Common Patterns
+
+### Configuration Settings
+
+Access and modify settings through the workspace configuration:
+
+```typescript
+const config = vscode.workspace.getConfiguration('myExtension');
+const value = config.get('setting', 'default');
+
+// Update configuration
+await config.update('setting', 'newValue', vscode.ConfigurationTarget.Global);
+```
+
+### Status Bar Items
+
+Create status bar items to display information:
+
+```typescript
+const statusBar = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    100
+);
+statusBar.text = '$(check) Ready';
+statusBar.command = 'extension.showStatus';
+statusBar.show();
+context.subscriptions.push(statusBar);
+```
+
+### Output Channels
+
+Create output channels for logging:
+
+```typescript
+const output = vscode.window.createOutputChannel('My Extension');
+output.appendLine('Extension started');
+output.show();
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Performance">
+    - Lazy load modules and activate only when needed
+    - Use activation events to delay extension loading
+    - Dispose of resources properly to prevent memory leaks
+    - Avoid synchronous operations that block the UI
+  </Accordion>
+  
+  <Accordion title="User Experience">
+    - Provide clear progress indicators for long operations
+    - Use appropriate notification severity (info, warning, error)
+    - Support keyboard shortcuts and accessibility
+    - Follow VS Code's UI guidelines and conventions
+  </Accordion>
+  
+  <Accordion title="Security">
+    - Validate user input and external data
+    - Use secure protocols for network requests
+    - Don't store secrets in plain text
+    - Request minimal permissions
+  </Accordion>
+</AccordionGroup>
+
+## Resources
+
+- [VS Code API Reference](https://code.visualstudio.com/api/references/vscode-api)
+- [Extension Guides](https://code.visualstudio.com/api/extension-guides/overview)
+- [Extension Samples](https://github.com/microsoft/vscode-extension-samples)
+- [Publishing Extensions](https://code.visualstudio.com/api/working-with-extensions/publishing-extension)
+
+## Next Steps
+
+Explore specific API areas:
+
+- **[Commands API](/api/commands)** - Register and execute commands
+- **[Text Editor API](/api/text-editor)** - Manipulate text documents
+- **[Workspace API](/api/workspace)** - Work with files and folders
+- **[Languages API](/api/languages)** - Provide language features
+- **[Debugging API](/api/debugging)** - Integrate debuggers
+- **[Authentication API](/api/authentication)** - Implement auth providers
+- **[Webview API](/api/webview)** - Create custom UI panels

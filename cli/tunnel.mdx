@@ -1,0 +1,722 @@
+---
+title: Remote Tunnels
+description: Access your development environment from anywhere with VS Code Remote Tunnels
+---
+
+VS Code Remote Tunnels provide secure, authenticated access to your development machine from anywhere in the world. You can connect to your remote machine through vscode.dev or the VS Code desktop application without complex SSH or VPN configurations.
+
+## Overview
+
+Remote Tunnels use Microsoft Dev Tunnels technology to create a secure connection between your local machine and the VS Code server. This allows you to:
+
+- Access your development environment from any device with a browser
+- Work on your home/office machine while traveling
+- Collaborate with others by sharing access to your machine
+- Develop on remote machines without SSH port forwarding
+- Use VS Code's full feature set remotely
+
+<Note>
+Remote Tunnels require authentication with either a Microsoft or GitHub account.
+</Note>
+
+## Quick Start
+
+<Steps>
+  <Step title="Start a tunnel">
+    On your development machine, run:
+    ```bash
+    code tunnel
+    ```
+  </Step>
+  
+  <Step title="Authenticate">
+    Follow the prompts to log in with your Microsoft or GitHub account. You'll be given a device code to enter on a web page.
+  </Step>
+  
+  <Step title="Name your machine (optional)">
+    Give your machine a memorable name, or let the CLI generate one randomly:
+    ```bash
+    code tunnel --name my-dev-machine
+    ```
+  </Step>
+  
+  <Step title="Connect remotely">
+    Open [vscode.dev](https://vscode.dev) in any browser and connect to your tunnel, or use VS Code desktop with the Remote Tunnels extension.
+  </Step>
+</Steps>
+
+## Creating Tunnels
+
+### Basic Tunnel
+
+Start a tunnel with default settings:
+
+```bash
+code tunnel
+```
+
+This will:
+1. Prompt you to log in (if not already authenticated)
+2. Generate a random machine name (or prompt for one)
+3. Start the tunnel server
+4. Display the URL to access your machine
+
+### Named Tunnel
+
+Create a tunnel with a specific name:
+
+```bash
+code tunnel --name my-desktop
+```
+
+<Note>
+Machine names must be unique within your account and can only contain letters, numbers, and hyphens.
+</Note>
+
+### Random Name
+
+Generate a random machine name automatically:
+
+```bash
+code tunnel --random-name
+```
+
+Useful for:
+- Temporary development environments
+- CI/CD runners
+- Testing scenarios
+
+### Prevent Sleep
+
+Keep your machine awake while the tunnel is running:
+
+```bash
+code tunnel --no-sleep
+```
+
+This prevents the system from going to sleep, which would disconnect the tunnel.
+
+### Accept License Terms
+
+Skip the interactive license acceptance prompt:
+
+```bash
+code tunnel --accept-server-license-terms
+```
+
+Required for:
+- Automated scripts
+- Non-interactive environments
+- CI/CD pipelines
+
+## Authentication
+
+### Login
+
+Authenticate with the tunnel service:
+
+```bash
+code tunnel user login
+```
+
+You'll be prompted to:
+1. Choose an authentication provider (Microsoft or GitHub)
+2. Visit a URL and enter a device code
+3. Authorize the application
+
+<Tabs>
+  <Tab title="GitHub">
+    ```bash
+    code tunnel user login --provider github
+    ```
+    
+    Authenticate using your GitHub account. This is recommended for developers who primarily use GitHub.
+  </Tab>
+  
+  <Tab title="Microsoft">
+    ```bash
+    code tunnel user login --provider microsoft
+    ```
+    
+    Authenticate using your Microsoft account (work, school, or personal).
+  </Tab>
+</Tabs>
+
+### Token-Based Authentication
+
+For automated workflows, you can provide access tokens directly:
+
+```bash
+code tunnel user login --provider github --access-token YOUR_TOKEN
+```
+
+Or use environment variables:
+
+```bash
+export VSCODE_CLI_ACCESS_TOKEN="your_access_token"
+export VSCODE_CLI_REFRESH_TOKEN="your_refresh_token"
+code tunnel user login --provider github
+```
+
+<Warning>
+Never commit access tokens to version control. Use secure secret management for production deployments.
+</Warning>
+
+### Check Authentication Status
+
+Verify which account is currently logged in:
+
+```bash
+code tunnel user show
+```
+
+Output:
+```
+logged in with provider github
+```
+
+### Logout
+
+Remove stored credentials:
+
+```bash
+code tunnel user logout
+```
+
+## Managing Tunnels
+
+### Check Status
+
+Get information about running tunnels:
+
+```bash
+code tunnel status
+```
+
+Returns JSON output:
+```json
+{
+  "tunnel": {
+    "name": "my-dev-machine",
+    "cluster": "usw2",
+    "id": "abc123...",
+    "status": "running"
+  },
+  "service_installed": false
+}
+```
+
+### Rename Tunnel
+
+Change the name of your machine:
+
+```bash
+code tunnel rename new-machine-name
+```
+
+This updates the machine name associated with the port forwarding service.
+
+### Restart Tunnel
+
+Restart a running tunnel:
+
+```bash
+code tunnel restart
+```
+
+Useful after:
+- Configuration changes
+- Network connectivity issues
+- Extension updates
+
+### Stop Tunnel
+
+Stop any running tunnel on the system:
+
+```bash
+code tunnel kill
+```
+
+This gracefully shuts down the tunnel server.
+
+### Unregister Machine
+
+Remove this machine's association with the tunnel service:
+
+```bash
+code tunnel unregister
+```
+
+<Warning>
+This removes the machine from your account. You'll need to create a new tunnel to connect again.
+</Warning>
+
+### Clean Up Inactive Tunnels
+
+Delete all tunnel servers that are not currently running:
+
+```bash
+code tunnel prune
+```
+
+This frees up disk space by removing:
+- Old server installations
+- Unused server data
+- Cached files
+
+## Running as a System Service
+
+For always-on tunnel access, install the tunnel as a system service. The service runs in the background and starts automatically on system boot.
+
+### Install Service
+
+<Steps>
+  <Step title="Ensure you're logged in">
+    ```bash
+    code tunnel user login
+    ```
+  </Step>
+  
+  <Step title="Install the service">
+    ```bash
+    code tunnel service install
+    ```
+    
+    Or with a specific name:
+    ```bash
+    code tunnel service install --name my-server
+    ```
+  </Step>
+  
+  <Step title="Accept license terms">
+    ```bash
+    code tunnel service install --accept-server-license-terms
+    ```
+  </Step>
+</Steps>
+
+<Note>
+Service installation requires administrator/root privileges on most systems.
+</Note>
+
+### Platform-Specific Service Management
+
+<Tabs>
+  <Tab title="Linux (systemd)">
+    The CLI creates a systemd service:
+    
+    ```bash
+    # Check service status
+    systemctl status code-tunnel
+    
+    # View logs
+    journalctl -u code-tunnel -f
+    
+    # Restart service
+    sudo systemctl restart code-tunnel
+    ```
+  </Tab>
+  
+  <Tab title="macOS (launchd)">
+    The CLI creates a launchd service:
+    
+    ```bash
+    # Check service status
+    launchctl list | grep code-tunnel
+    
+    # View logs
+    tail -f ~/Library/Logs/code-tunnel.log
+    ```
+  </Tab>
+  
+  <Tab title="Windows">
+    The CLI creates a Windows service:
+    
+    ```powershell
+    # Check service status
+    Get-Service vscode-tunnel
+    
+    # View logs
+    code tunnel service log
+    ```
+  </Tab>
+</Tabs>
+
+### View Service Logs
+
+Display logs from the running service:
+
+```bash
+code tunnel service log
+```
+
+This shows:
+- Connection events
+- Error messages
+- Performance metrics
+- Authentication status
+
+### Uninstall Service
+
+Remove the tunnel service:
+
+```bash
+code tunnel service uninstall
+```
+
+This:
+1. Stops the running service
+2. Removes service configuration
+3. Cleans up service files
+
+## Advanced Configuration
+
+### Custom Server Data Directory
+
+Specify where server data is stored:
+
+```bash
+code tunnel --server-data-dir ~/.custom-vscode-server
+```
+
+### Custom Extensions Directory
+
+Use a custom location for extensions:
+
+```bash
+code tunnel --extensions-dir ~/.custom-extensions
+```
+
+### Pre-install Extensions
+
+Install extensions when the tunnel starts:
+
+```bash
+code tunnel --install-extension ms-python.python --install-extension ms-vscode.cpptools
+```
+
+### Reconnection Grace Time
+
+Set how long the server waits for reconnection (in seconds):
+
+```bash
+code tunnel --reconnection-grace-time 7200  # 2 hours
+```
+
+Default is 10800 seconds (3 hours).
+
+### Using Existing Tunnels
+
+Connect to an existing tunnel with specific credentials:
+
+<Note>
+These are advanced options primarily for internal or debugging use.
+</Note>
+
+```bash
+code tunnel --tunnel-id TUNNEL_ID --cluster CLUSTER --host-token TOKEN
+```
+
+## Connecting to Tunnels
+
+### Via Browser (vscode.dev)
+
+<Steps>
+  <Step title="Open vscode.dev">
+    Navigate to [https://vscode.dev](https://vscode.dev) in any modern browser.
+  </Step>
+  
+  <Step title="Click Remote Tunnels">
+    In the left sidebar, click the Remote Explorer icon or use the Command Palette (`F1`) and search for "Remote Tunnels".
+  </Step>
+  
+  <Step title="Sign in">
+    Sign in with the same account you used to create the tunnel.
+  </Step>
+  
+  <Step title="Select your machine">
+    Choose your machine from the list of available tunnels.
+  </Step>
+  
+  <Step title="Start coding">
+    You now have full access to your remote development environment!
+  </Step>
+</Steps>
+
+### Via VS Code Desktop
+
+<Steps>
+  <Step title="Install Remote Tunnels extension">
+    Install the "Remote - Tunnels" extension from the marketplace.
+  </Step>
+  
+  <Step title="Open Remote Explorer">
+    Click the Remote Explorer icon in the Activity Bar.
+  </Step>
+  
+  <Step title="Connect to tunnel">
+    Select "Remote Tunnels" from the dropdown and click on your machine.
+  </Step>
+</Steps>
+
+### Via VS Code Insiders
+
+VS Code Insiders has built-in tunnel support:
+
+```bash
+code-insiders --remote tunnel://my-machine-name
+```
+
+## Port Forwarding
+
+The tunnel automatically handles port forwarding for development servers.
+
+### How It Works
+
+1. Start a web server on your remote machine (e.g., `localhost:3000`)
+2. VS Code detects the server automatically
+3. A forwarded URL is created (e.g., `https://abc123.tunnel.dev:3000`)
+4. Access your app from anywhere via the forwarded URL
+
+### Manual Port Forwarding
+
+You can also manually forward ports:
+
+1. Open the Command Palette (`F1`)
+2. Run "Forward a Port"
+3. Enter the port number
+4. Access via the provided URL
+
+## Security Considerations
+
+<AccordionGroup>
+  <Accordion title="Authentication & Authorization">
+    - All tunnel connections require authentication
+    - Only you can access your tunnels (unless explicitly shared)
+    - Connections use TLS encryption
+    - Tokens are stored securely in the system keychain
+  </Accordion>
+  
+  <Accordion title="Network Security">
+    - Tunnels use encrypted WebSocket connections
+    - No inbound firewall rules required
+    - All traffic goes through Microsoft's Dev Tunnels service
+    - Connection tokens are SHA-256 hashed
+  </Accordion>
+  
+  <Accordion title="Data Privacy">
+    - Your code stays on your machine
+    - Only connection metadata passes through the tunnel service
+    - You control what is accessible remotely
+    - Can be completely unregistered at any time
+  </Accordion>
+  
+  <Accordion title="Best Practices">
+    - Use strong authentication (GitHub/Microsoft)
+    - Don't share access tokens
+    - Regularly rotate credentials
+    - Use `--no-sleep` judiciously (power consumption)
+    - Monitor active connections via `code tunnel status`
+    - Unregister unused tunnels
+  </Accordion>
+</AccordionGroup>
+
+## Use Cases
+
+### Remote Development
+
+```bash
+# On your powerful office desktop
+code tunnel --name office-desktop --no-sleep
+
+# From your laptop at home
+# Access via vscode.dev or VS Code desktop
+```
+
+### Continuous Development Environment
+
+```bash
+# Install as service for 24/7 access
+code tunnel service install --name always-on-dev
+```
+
+### Collaborative Debugging
+
+```bash
+# Start tunnel with pre-installed extensions
+code tunnel --name debug-session \
+  --install-extension ms-vscode.cpptools \
+  --install-extension ms-vscode.cmake-tools
+
+# Share access with team members
+```
+
+### CI/CD Integration
+
+```bash
+# In your CI pipeline
+export VSCODE_CLI_ACCESS_TOKEN="${GITHUB_TOKEN}"
+code tunnel user login --provider github
+code tunnel --random-name --accept-server-license-terms
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Tunnel won't start">
+    **Common causes:**
+    - Not authenticated: Run `code tunnel user login`
+    - Port 31545 already in use: Check for existing tunnel processes
+    - Network restrictions: Ensure HTTPS/WSS traffic is allowed
+    
+    **Solutions:**
+    ```bash
+    # Check for running tunnels
+    code tunnel status
+    
+    # Kill existing tunnel
+    code tunnel kill
+    
+    # Check authentication
+    code tunnel user show
+    
+    # Start with verbose logging
+    code tunnel --verbose
+    ```
+  </Accordion>
+  
+  <Accordion title="Can't connect to tunnel">
+    **Common causes:**
+    - Tunnel server stopped
+    - Different authentication account
+    - Network connectivity issues
+    
+    **Solutions:**
+    ```bash
+    # Verify tunnel is running
+    code tunnel status
+    
+    # Restart tunnel
+    code tunnel restart
+    
+    # Check you're using the same account
+    code tunnel user show
+    ```
+  </Accordion>
+  
+  <Accordion title="Service won't install">
+    **Common causes:**
+    - Insufficient permissions
+    - Existing service installation
+    - System service manager unavailable
+    
+    **Solutions:**
+    ```bash
+    # Run with elevated privileges
+    sudo code tunnel service install  # Linux/macOS
+    
+    # Or as Administrator on Windows
+    
+    # Uninstall existing service first
+    sudo code tunnel service uninstall
+    ```
+  </Accordion>
+  
+  <Accordion title="Tunnel keeps disconnecting">
+    **Common causes:**
+    - Machine going to sleep
+    - Network instability
+    - Firewall blocking connections
+    
+    **Solutions:**
+    ```bash
+    # Prevent sleep
+    code tunnel --no-sleep
+    
+    # Install as service (more stable)
+    code tunnel service install
+    
+    # Check logs
+    code tunnel service log
+    ```
+  </Accordion>
+  
+  <Accordion title="Extensions not working">
+    **Common causes:**
+    - Extensions not installed on server
+    - Extension incompatibility with remote
+    - Extension data directory issues
+    
+    **Solutions:**
+    ```bash
+    # Pre-install extensions
+    code tunnel --install-extension EXTENSION_ID
+    
+    # Use custom extensions directory
+    code tunnel --extensions-dir ~/.custom-extensions
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Performance Tips
+
+<CardGroup cols={2}>
+  <Card title="Network Optimization" icon="gauge-high">
+    - Use a wired connection when possible
+    - Close bandwidth-heavy applications
+    - Consider increasing reconnection grace time
+    - Enable compression for large file transfers
+  </Card>
+  
+  <Card title="Resource Management" icon="memory">
+    - Pre-install frequently used extensions
+    - Use custom server data directory on fast storage
+    - Regularly prune unused tunnel servers
+    - Monitor system resources with `code status`
+  </Card>
+</CardGroup>
+
+## Comparison with SSH
+
+| Feature | Tunnels | SSH |
+|---------|---------|-----|
+| Setup complexity | Simple | Moderate |
+| Firewall config | Not required | Required |
+| Web browser access | ✅ Yes | ❌ No |
+| Built-in auth | ✅ Yes | Manual |
+| Port forwarding | Automatic | Manual |
+| Cross-platform | ✅ Yes | ✅ Yes |
+| Always-on service | ✅ Yes | Requires setup |
+| Free tier | ✅ Yes | N/A |
+
+## Limits and Quotas
+
+<Note>
+Microsoft Dev Tunnels has usage limits for the free tier. See the [Dev Tunnels documentation](https://docs.microsoft.com/en-us/azure/developer/dev-tunnels/) for current limits.
+</Note>
+
+Typical limits:
+- Maximum concurrent tunnels per account
+- Bandwidth limits
+- Connection timeout periods
+- Data transfer quotas
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/cli/configuration">
+    Configure tunnels for your workflow
+  </Card>
+  
+  <Card title="Commands Reference" icon="terminal" href="/cli/commands">
+    See all tunnel commands
+  </Card>
+  
+  <Card title="Installation" icon="download" href="/cli/installation">
+    Install the CLI
+  </Card>
+  
+  <Card title="Overview" icon="book" href="/cli/overview">
+    Back to CLI overview
+  </Card>
+</CardGroup>

@@ -1,0 +1,679 @@
+---
+title: 'Coding Guidelines'
+description: 'Coding standards and best practices for contributing to VS Code'
+---
+
+## Overview
+
+This document outlines the coding guidelines for contributing to Visual Studio Code. Following these standards ensures consistency across the codebase and makes it easier for everyone to read and maintain the code.
+
+<Note>
+All contributors are expected to follow these guidelines. Pull requests that don't adhere to these standards may be asked to make revisions.
+</Note>
+
+## Indentation
+
+<Warning>
+**VS Code uses tabs, not spaces.** This is enforced via `.editorconfig`.
+</Warning>
+
+### EditorConfig Settings
+
+The project uses EditorConfig to maintain consistent coding styles:
+
+```ini
+# Tab indentation for all files
+[*]
+indent_style = tab
+trim_trailing_whitespace = true
+
+# Exception: YAML and package.json use 2 spaces
+[{*.yml,*.yaml,package.json}]
+indent_style = space
+indent_size = 2
+```
+
+<Accordion title="Why Tabs?">
+  Tabs allow developers to choose their preferred visual width while maintaining consistency in the actual file content. This is a deliberate choice for the VS Code project.
+</Accordion>
+
+## Naming Conventions
+
+Consistent naming makes code more readable and maintainable.
+
+### Type Names
+
+Use **PascalCase** for type names:
+
+```typescript
+type RequestHandler = (request: Request) => Response;
+
+interface EditorOptions {
+	tabSize: number;
+	insertSpaces: boolean;
+}
+
+enum ViewColumn {
+	Active = -1,
+	Beside = -2,
+	One = 1,
+	Two = 2
+}
+```
+
+### Enum Values
+
+Use **PascalCase** for enum values:
+
+```typescript
+enum FileType {
+	File = 1,
+	Directory = 2,
+	SymbolicLink = 64
+}
+```
+
+### Functions and Methods
+
+Use **camelCase** for function and method names:
+
+```typescript
+function parseUri(uri: string): URI {
+	// implementation
+}
+
+class TextDocument {
+	getLineAt(line: number): TextLine {
+		// implementation
+	}
+}
+```
+
+### Properties and Variables
+
+Use **camelCase** for property names and local variables:
+
+```typescript
+const maxLineLength = 100;
+let currentPosition = 0;
+
+interface WorkspaceConfiguration {
+	lineNumbers: boolean;
+	wordWrap: string;
+}
+```
+
+### Naming Best Practices
+
+<Steps>
+  <Step title="Use Whole Words">
+    Prefer complete words over abbreviations when possible:
+    ```typescript
+    // Good
+    const diagnosticCollection = new DiagnosticCollection();
+    
+    // Avoid
+    const diagCol = new DiagnosticCollection();
+    ```
+  </Step>
+  <Step title="Be Descriptive">
+    Names should clearly indicate what the variable or function does:
+    ```typescript
+    // Good
+    function validateUserInput(input: string): boolean
+    
+    // Avoid
+    function check(s: string): boolean
+    ```
+  </Step>
+  <Step title="Follow Domain Conventions">
+    Use terminology consistent with VS Code's domain and existing codebase.
+  </Step>
+</Steps>
+
+## Types
+
+### Avoid Polluting Global Namespace
+
+<Warning>
+Do not introduce new types or values to the global namespace unless absolutely necessary.
+</Warning>
+
+```typescript
+// Good - scoped export
+export function parse(content: string): ParsedContent {
+	// implementation
+}
+
+// Avoid - polluting global scope
+declare global {
+	function parse(content: string): ParsedContent;
+}
+```
+
+### Export Minimally
+
+<Tip>
+Only export types or functions when you need to share them across multiple components. Keep internal implementation details private.
+</Tip>
+
+```typescript
+// Good - internal helper not exported
+function normalizeLineEndings(text: string): string {
+	return text.replace(/\r\n/g, '\n');
+}
+
+export function processDocument(doc: TextDocument): void {
+	const content = normalizeLineEndings(doc.getText());
+	// ...
+}
+```
+
+### Avoid `any` and `unknown`
+
+<Warning>
+Do not use `any` or `unknown` as types for variables, parameters, or return values unless absolutely necessary. Always prefer proper type definitions.
+</Warning>
+
+```typescript
+// Good
+function parseJson<T>(content: string): T {
+	return JSON.parse(content);
+}
+
+// Avoid
+function parseJson(content: string): any {
+	return JSON.parse(content);
+}
+```
+
+## Comments
+
+Use **JSDoc style** comments for functions, interfaces, enums, and classes:
+
+```typescript
+/**
+ * Represents a text document, such as a source file.
+ * Text documents have lines and knowledge about an underlying resource.
+ */
+interface TextDocument {
+	/**
+	 * The associated URI for this document.
+	 */
+	readonly uri: URI;
+
+	/**
+	 * Get the text of this document.
+	 * @param range The range to get text for. If omitted, returns full document text.
+	 * @returns The text in the specified range.
+	 */
+	getText(range?: Range): string;
+}
+
+/**
+ * Validates a URI string and returns a normalized URI object.
+ * @param uriString The URI string to validate
+ * @returns A normalized URI object
+ * @throws {Error} If the URI string is invalid
+ */
+function validateUri(uriString: string): URI {
+	// implementation
+}
+```
+
+<Accordion title="When to Write Comments">
+  - **Public APIs**: Always document with JSDoc
+  - **Complex logic**: Explain the "why" not the "what"
+  - **Non-obvious behavior**: Document surprising or unintuitive code
+  - **Workarounds**: Explain why a workaround is necessary
+  
+  Avoid comments that simply restate what the code does:
+  ```typescript
+  // Bad - comment adds no value
+  // Increment counter
+  counter++;
+  
+  // Good - explains why
+  // Skip BOM character at start of UTF-8 files
+  if (content.charCodeAt(0) === 0xFEFF) {
+  	content = content.substring(1);
+  }
+  ```
+</Accordion>
+
+## Strings
+
+### Quote Style
+
+VS Code has specific rules for string quotes:
+
+<Tabs>
+  <Tab title="Double Quotes">
+    Use **double quotes** for strings shown to the user that need to be externalized (localized):
+    ```typescript
+    const message = nls.localize('key', "This message will be translated");
+    ```
+  </Tab>
+  <Tab title="Single Quotes">
+    Use **single quotes** for all other strings:
+    ```typescript
+    const filePath = 'src/vs/editor/common/model.ts';
+    const regex = /[a-z]+/;
+    ```
+  </Tab>
+</Tabs>
+
+### Localization
+
+All strings visible to users must be externalized using the `vs/nls` module:
+
+```typescript
+import * as nls from 'vs/nls';
+
+// Good - externalized with placeholders
+const message = nls.localize('fileNotFound', "File '{0}' not found", fileName);
+
+// Avoid - string concatenation
+const message = nls.localize('fileNotFound', "File '" + fileName + "' not found");
+```
+
+<Warning>
+Externalized strings must **not** use string concatenation. Always use placeholders like `{0}`, `{1}`, etc.
+</Warning>
+
+## UI Labels
+
+### Capitalization
+
+Use **title-style capitalization** for command labels, buttons, and menu items:
+
+<Tabs>
+  <Tab title="Correct">
+    - Open File
+    - Save All
+    - Find in Files
+    - Toggle Developer Tools
+    - Replace with Copy
+  </Tab>
+  <Tab title="Incorrect">
+    - Open file (missing capitals)
+    - Save all (missing capitals)
+    - Find In Files (preposition capitalized)
+    - Toggle developer tools (missing capitals)
+  </Tab>
+</Tabs>
+
+<Note>
+Don't capitalize prepositions of four or fewer letters (in, with, for, from) unless it's the first or last word.
+</Note>
+
+## Code Style
+
+### Arrow Functions
+
+Prefer arrow functions over anonymous function expressions:
+
+```typescript
+// Good
+const numbers = [1, 2, 3].map(n => n * 2);
+
+// Avoid
+const numbers = [1, 2, 3].map(function(n) { return n * 2; });
+```
+
+### Arrow Function Parameters
+
+Only surround arrow function parameters when necessary:
+
+```typescript
+// Good - single parameter, no parens needed
+x => x + x
+
+// Good - multiple parameters need parens
+(x, y) => x + y
+
+// Good - type parameters need parens
+<T>(x: T, y: T) => x === y
+
+// Wrong - unnecessary parens
+(x) => x + x
+```
+
+### Curly Braces
+
+Always surround loop and conditional bodies with curly braces:
+
+```typescript
+// Good
+if (condition) {
+	doSomething();
+}
+
+for (let i = 0; i < 10; i++) {
+	process(i);
+}
+
+// Wrong - missing braces
+if (condition)
+	doSomething();
+
+for (let i = 0; i < 10; i++)
+	process(i);
+```
+
+### Brace Placement
+
+Open curly braces always go on the same line:
+
+```typescript
+// Good
+if (x < 10) {
+	foo();
+}
+
+function process(data: string): void {
+	// implementation
+}
+
+// Wrong
+if (x < 10)
+{
+	foo();
+}
+```
+
+### Whitespace in Constructs
+
+Parenthesized constructs should have no surrounding whitespace. Single space follows commas, colons, and semicolons:
+
+```typescript
+// Good
+for (let i = 0, n = str.length; i < 10; i++) {
+	if (x < 10) {
+		foo();
+	}
+}
+function f(x: number, y: string): void { }
+
+// Wrong
+for ( let i = 0 , n = str.length ; i < 10 ; i++ ) {
+	if ( x < 10 ) {
+		foo();
+	}
+}
+function f(x:number,y:string):void { }
+```
+
+### Function Declaration Style
+
+<Tip>
+In top-level scopes, prefer `export function x() {}` over `export const x = () => {}`.
+</Tip>
+
+Using the `function` keyword provides better stack traces when debugging:
+
+```typescript
+// Good - shows function name in stack trace
+export function validateInput(input: string): boolean {
+	// implementation
+}
+
+// Less ideal - may show as anonymous in stack traces
+export const validateInput = (input: string): boolean => {
+	// implementation
+};
+```
+
+## Code Quality
+
+### Async/Await
+
+Prefer `async` and `await` over `Promise` and `then` calls:
+
+```typescript
+// Good
+async function loadDocument(uri: URI): Promise<TextDocument> {
+	const content = await readFile(uri);
+	const parsed = await parseContent(content);
+	return createDocument(parsed);
+}
+
+// Avoid
+function loadDocument(uri: URI): Promise<TextDocument> {
+	return readFile(uri)
+		.then(content => parseContent(content))
+		.then(parsed => createDocument(parsed));
+}
+```
+
+### Disposables Management
+
+<Warning>
+You **MUST** deal with disposables by registering them immediately after creation for later disposal.
+</Warning>
+
+Use helpers such as `DisposableStore`, `MutableDisposable`, or `DisposableMap`:
+
+```typescript
+// Good - disposables properly managed
+class MyComponent {
+	private readonly disposables = new DisposableStore();
+
+	constructor() {
+		this.disposables.add(workspace.onDidChangeConfiguration(e => {
+			// handle change
+		}));
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
+	}
+}
+
+// Wrong - disposable leak
+class MyComponent {
+	constructor() {
+		workspace.onDidChangeConfiguration(e => {
+			// handle change - this listener is never disposed!
+		});
+	}
+}
+```
+
+<Tip>
+Do **NOT** register a disposable to the containing class if the object is created within a method that is called repeatedly. Instead, return an `IDisposable` and let the caller register it.
+</Tip>
+
+### File Watching
+
+When adding file watching, prefer correlated file watchers:
+
+```typescript
+// Good - correlated watcher via fileService
+const watcher = this.fileService.createWatcher(uri);
+
+// Less ideal - shared watcher
+const watcher = this.fileService.watch(uri);
+```
+
+### Tooltips
+
+When adding tooltips to UI elements, prefer the `IHoverService`:
+
+```typescript
+// Good
+this.hoverService.showHover({
+	content: 'Tooltip content',
+	target: element
+});
+```
+
+### Code Reuse
+
+<Warning>
+Do **not** duplicate code. Always look for existing utility functions, helpers, or patterns before implementing new functionality.
+</Warning>
+
+<Steps>
+  <Step title="Search Existing Code">
+    Use grep or file search to find similar implementations
+  </Step>
+  <Step title="Check Common Utilities">
+    Look in `src/vs/base/common/` for common utilities
+  </Step>
+  <Step title="Extend When Possible">
+    Extend existing utilities rather than creating duplicates
+  </Step>
+  <Step title="Refactor if Needed">
+    If you find duplication, consider refactoring to share code
+  </Step>
+</Steps>
+
+### Storage Keys
+
+<Warning>
+You **MUST NOT** use storage keys of another component only to make changes to that component. Create proper APIs instead.
+</Warning>
+
+```typescript
+// Wrong - directly accessing another component's storage
+const otherValue = storageService.get('other.component.key');
+
+// Good - using proper API
+const otherValue = otherComponent.getValue();
+```
+
+### Import Management
+
+<Tip>
+Never duplicate imports. Always reuse existing imports if they are present.
+</Tip>
+
+```typescript
+// Good
+import { URI } from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
+
+// Wrong - duplicate imports
+import { URI } from 'vs/base/common/uri';
+// ... 100 lines later
+import { URI } from 'vs/base/common/uri';
+```
+
+## Testing
+
+### Test Organization
+
+<Warning>
+Don't add tests to the wrong test suite (e.g., adding to end of file instead of inside relevant suite).
+</Warning>
+
+Look for existing test patterns before creating new structures:
+
+```typescript
+// Good - organized test suite
+suite('TextDocument', () => {
+	test('should get line count', () => {
+		// test implementation
+	});
+
+	test('should get line at position', () => {
+		// test implementation
+	});
+});
+```
+
+### Test Assertions
+
+Minimize the number of assertions in tests:
+
+```typescript
+// Good - single comprehensive assertion
+test('parse configuration', () => {
+	const result = parseConfig(input);
+	assert.deepStrictEqual(result, {
+		tabSize: 4,
+		insertSpaces: false,
+		trimTrailingWhitespace: true
+	});
+});
+
+// Less ideal - multiple fragile assertions
+test('parse configuration', () => {
+	const result = parseConfig(input);
+	assert.strictEqual(result.tabSize, 4);
+	assert.strictEqual(result.insertSpaces, false);
+	assert.strictEqual(result.trimTrailingWhitespace, true);
+});
+```
+
+## Regular Expressions
+
+Prefer named capture groups over numbered ones:
+
+```typescript
+// Good - named capture groups
+const pattern = /^(?<protocol>https?):\/\/(?<host>[^\/]+)/;
+const match = pattern.exec(url);
+if (match) {
+	const { protocol, host } = match.groups!;
+}
+
+// Less ideal - numbered capture groups
+const pattern = /^(https?):\/\/([^\/]+)/;
+const match = pattern.exec(url);
+if (match) {
+	const protocol = match[1];
+	const host = match[2];
+}
+```
+
+## Copyright Header
+
+<Warning>
+All files must include the Microsoft copyright header at the top.
+</Warning>
+
+```typescript
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+```
+
+## Cleanup
+
+If you create any temporary files, scripts, or helper files during development:
+
+<Steps>
+  <Step title="Document Temporary Files">
+    Keep track of any temporary files you create
+  </Step>
+  <Step title="Remove Before Committing">
+    Clean up these files before submitting your pull request
+  </Step>
+  <Step title="Check Git Status">
+    Use `git status` to ensure no unwanted files are included
+  </Step>
+</Steps>
+
+## Summary
+
+<CardGroup cols={2}>
+  <Card title="Key Points" icon="star">
+    - Use tabs for indentation
+    - Follow naming conventions (PascalCase for types, camelCase for functions)
+    - Avoid `any` type
+    - Externalize user-facing strings
+  </Card>
+  <Card title="Best Practices" icon="check">
+    - Prefer async/await
+    - Manage disposables properly
+    - Reuse existing code
+    - Write comprehensive tests
+  </Card>
+</CardGroup>
+
+<Note>
+These guidelines help maintain code quality and consistency across the VS Code codebase. When in doubt, look at existing code for examples.
+</Note>

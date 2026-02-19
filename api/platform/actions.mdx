@@ -1,0 +1,516 @@
+---
+title: Actions and Commands
+description: Learn how to create and register actions and commands in VS Code
+---
+
+Actions and commands are the primary way to implement executable functionality in VS Code. The Actions framework provides a unified system for defining commands, registering them in menus, and binding them to keybindings.
+
+## Overview
+
+VS Code distinguishes between:
+- **Commands**: Executable functions registered in the CommandsRegistry
+- **Actions**: Higher-level abstractions that combine commands with UI metadata (menus, keybindings, icons, etc.)
+- **Menu Items**: Commands displayed in specific menus with context-aware visibility
+
+## Command Actions
+
+### ICommandAction Interface
+
+The `ICommandAction` interface defines the structure of a command with its metadata:
+
+```typescript
+export interface ICommandAction {
+  id: string;
+  title: string | ICommandActionTitle;
+  shortTitle?: string | ICommandActionTitle;
+  
+  /**
+   * Metadata about this command, used for API commands and keybindings
+   */
+  metadata?: ICommandMetadata;
+  
+  category?: keyof typeof Categories | ILocalizedString | string;
+  tooltip?: string | ILocalizedString;
+  icon?: Icon;
+  source?: ICommandActionSource;
+  
+  /**
+   * Precondition controls enablement (shown grey in menus if false)
+   */
+  precondition?: ContextKeyExpression;
+
+  /**
+   * The action is a toggle action with toggle state
+   */
+  toggled?: ContextKeyExpression | ICommandActionToggleInfo;
+}
+```
+
+### Localized Strings
+
+Commands should use `ILocalizedString` for internationalization:
+
+```typescript
+export interface ILocalizedString {
+  /**
+   * The localized value of the string
+   */
+  value: string;
+
+  /**
+   * The original (non-localized) value of the string
+   */
+  original: string;
+}
+```
+
+Example:
+
+```typescript
+const command: ICommandAction = {
+  id: 'workbench.action.toggleSidebarVisibility',
+  title: { 
+    value: localize('toggleSidebar', "Toggle Sidebar Visibility"),
+    original: 'Toggle Sidebar Visibility'
+  },
+  category: Categories.View
+};
+```
+
+## Action2: The Modern Action API
+
+`Action2` is the recommended way to register actions. It combines command registration, menu items, and keybindings in a single declaration.
+
+### Basic Action2 Structure
+
+```typescript
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+
+class MyAction extends Action2 {
+  constructor() {
+    super({
+      id: 'myExtension.myCommand',
+      title: {
+        value: 'My Command',
+        original: 'My Command'
+      },
+      category: 'My Extension',
+      f1: true,  // Show in Command Palette
+      precondition: ContextKeyExpr.equals('editorTextFocus', true)
+    });
+  }
+
+  async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+    // Access services via the accessor
+    const editorService = accessor.get(IEditorService);
+    const configService = accessor.get(IConfigurationService);
+    
+    // Execute command logic
+    const activeEditor = editorService.activeEditor;
+    // ...
+  }
+}
+
+// Register the action
+registerAction2(MyAction);
+```
+
+### Action2 with Menus and Keybindings
+
+<Accordion title="Complete Action2 Example">
+
+```typescript
+import { Action2, registerAction2, MenuId } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+
+class FormatDocumentAction extends Action2 {
+  constructor() {
+    super({
+      id: 'editor.action.formatDocument',
+      title: {
+        value: 'Format Document',
+        original: 'Format Document'
+      },
+      category: 'Editor',
+      
+      // Command Palette
+      f1: true,
+      
+      // Menus
+      menu: [
+        {
+          id: MenuId.EditorContext,
+          when: ContextKeyExpr.and(
+            ContextKeyExpr.equals('editorTextFocus', true),
+            ContextKeyExpr.equals('editorReadonly', false)
+          ),
+          group: '1_modification',
+          order: 1
+        },
+        {
+          id: MenuId.EditorTitle,
+          when: ContextKeyExpr.equals('editorTextFocus', true),
+          group: 'navigation',
+          order: 10
+        }
+      ],
+      
+      // Keybindings
+      keybinding: {
+        primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyF,
+        when: ContextKeyExpr.equals('editorTextFocus', true),
+        weight: KeybindingWeight.EditorContrib
+      },
+      
+      // Icon
+      icon: Codicon.formatDocument,
+      
+      // Precondition
+      precondition: ContextKeyExpr.and(
+        ContextKeyExpr.equals('editorTextFocus', true),
+        ContextKeyExpr.equals('editorReadonly', false)
+      )
+    });
+  }
+
+  async run(accessor: ServicesAccessor): Promise<void> {
+    const configService = accessor.get(IConfigurationService);
+    const notificationService = accessor.get(INotificationService);
+    
+    try {
+      // Format the document
+      await formatDocument();
+      notificationService.info('Document formatted successfully');
+    } catch (error) {
+      notificationService.error('Failed to format document');
+    }
+  }
+}
+
+registerAction2(FormatDocumentAction);
+```
+
+</Accordion>
+
+### Action2Options
+
+```typescript
+export type IAction2Options = ICommandPaletteOptions | IBaseAction2Options;
+
+export interface ICommandPaletteOptions extends IAction2CommonOptions {
+  /**
+   * The title with localized strings
+   */
+  title: ICommandActionTitle;
+
+  /**
+   * The category for Command Palette
+   */
+  category?: keyof typeof Categories | ILocalizedString;
+
+  /**
+   * Shorthand to add this command to the command palette
+   */
+  f1: true;
+}
+
+interface IAction2CommonOptions extends ICommandAction {
+  /**
+   * One or many menu items
+   */
+  menu?: OneOrN<{ id: MenuId; precondition?: null } & Omit<IMenuItem, 'command'>>;
+
+  /**
+   * One or many keybindings
+   */
+  keybinding?: OneOrN<Omit<IKeybindingRule, 'id'>>;
+}
+```
+
+## Menu System
+
+### MenuId Enum
+
+VS Code defines over 100 menu locations. Here are the most commonly used:
+
+<CodeGroup>
+
+```typescript Editor Menus
+MenuId.EditorContext          // Right-click in editor
+MenuId.EditorTitle            // Editor tab toolbar
+MenuId.EditorTitleContext     // Right-click on editor tab
+MenuId.EditorLineNumberContext // Right-click on line numbers
+```
+
+```typescript View Menus
+MenuId.ViewTitle              // View toolbar
+MenuId.ViewItemContext        // Right-click on view items
+MenuId.ViewContainerTitle     // View container toolbar
+MenuId.ExplorerContext        // Right-click in Explorer
+```
+
+```typescript Global Menus
+MenuId.CommandPalette         // Command Palette (F1)
+MenuId.MenubarFileMenu        // File menu
+MenuId.MenubarEditMenu        // Edit menu
+MenuId.MenubarViewMenu        // View menu
+MenuId.MenubarHelpMenu        // Help menu
+```
+
+```typescript SCM Menus
+MenuId.SCMTitle               // SCM view toolbar
+MenuId.SCMResourceContext     // Right-click on SCM resource
+MenuId.SCMSourceControl       // SCM provider inline actions
+```
+
+</CodeGroup>
+
+### Registering Menu Items
+
+You can register menu items independently from commands:
+
+```typescript
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+
+MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+  command: {
+    id: 'myExtension.myCommand',
+    title: 'My Command',
+    icon: Codicon.sparkle
+  },
+  when: ContextKeyExpr.and(
+    ContextKeyExpr.equals('resourceExtname', '.md'),
+    ContextKeyExpr.equals('editorTextFocus', true)
+  ),
+  group: 'navigation',
+  order: 1
+});
+```
+
+### Menu Item Structure
+
+```typescript
+export interface IMenuItem {
+  command: ICommandAction;
+  alt?: ICommandAction;  // Alternative command (Shift+Click)
+  
+  /**
+   * Menu item is hidden if this expression returns false
+   */
+  when?: ContextKeyExpression;
+  
+  group?: 'navigation' | string;
+  order?: number;
+  isHiddenByDefault?: boolean;
+}
+```
+
+### Menu Groups and Ordering
+
+Menu items are organized into groups with ordering:
+
+```typescript
+// Common groups:
+// - 'navigation' - Primary actions (shown as icons)
+// - '1_modification' - Edit operations
+// - '2_workspace' - Workspace operations  
+// - '3_compare' - Compare/diff operations
+// - '4_search' - Search operations
+// - '5_cutcopypaste' - Cut/copy/paste
+// - '9_cutcopypaste' - Last group
+
+MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+  command: { id: 'editor.action.rename', title: 'Rename Symbol' },
+  group: '1_modification',
+  order: 1.1
+});
+```
+
+## Submenus
+
+Create hierarchical menus using submenus:
+
+```typescript
+export interface ISubmenuItem {
+  title: string | ICommandActionTitle;
+  submenu: MenuId;
+  icon?: Icon;
+  when?: ContextKeyExpression;
+  group?: 'navigation' | string;
+  order?: number;
+}
+```
+
+Example:
+
+```typescript
+// Define a custom submenu
+const MySubMenuId = new MenuId('myExtension.submenu');
+
+// Register items in the submenu
+MenuRegistry.appendMenuItem(MySubMenuId, {
+  command: { id: 'myExtension.action1', title: 'Action 1' }
+});
+
+MenuRegistry.appendMenuItem(MySubMenuId, {
+  command: { id: 'myExtension.action2', title: 'Action 2' }
+});
+
+// Add the submenu to a parent menu
+MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+  submenu: MySubMenuId,
+  title: 'My Extension Actions',
+  group: '1_modification',
+  order: 10
+});
+```
+
+## Context Keys and When Clauses
+
+Actions use context keys to control visibility and enablement:
+
+```typescript
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+
+// Single condition
+when: ContextKeyExpr.equals('editorTextFocus', true)
+
+// AND condition
+when: ContextKeyExpr.and(
+  ContextKeyExpr.equals('editorTextFocus', true),
+  ContextKeyExpr.equals('editorLangId', 'typescript')
+)
+
+// OR condition  
+when: ContextKeyExpr.or(
+  ContextKeyExpr.equals('resourceExtname', '.ts'),
+  ContextKeyExpr.equals('resourceExtname', '.js')
+)
+
+// NOT condition
+when: ContextKeyExpr.not('editorReadonly')
+
+// Comparison
+when: ContextKeyExpr.greater('multiDiffEditorEnableViewChanges', 0)
+
+// Regex matching
+when: ContextKeyExpr.regex('resourceFilename', /test\.ts$/)
+```
+
+## Toggle Actions
+
+Actions can represent toggle states:
+
+```typescript
+export interface ICommandActionToggleInfo {
+  /**
+   * The condition that marks the action as toggled
+   */
+  condition: ContextKeyExpression;
+  
+  icon?: Icon;
+  tooltip?: string;
+  title?: string;
+}
+```
+
+Example:
+
+```typescript
+class ToggleLineNumbersAction extends Action2 {
+  constructor() {
+    super({
+      id: 'editor.action.toggleLineNumbers',
+      title: { value: 'Toggle Line Numbers', original: 'Toggle Line Numbers' },
+      toggled: {
+        condition: ContextKeyExpr.equals('config.editor.lineNumbers', 'on'),
+        title: 'Line Numbers',  // Title when checked
+        icon: Codicon.check
+      }
+    });
+  }
+
+  run(accessor: ServicesAccessor): void {
+    const configService = accessor.get(IConfigurationService);
+    const current = configService.getValue('editor.lineNumbers');
+    configService.updateValue('editor.lineNumbers', current === 'on' ? 'off' : 'on');
+  }
+}
+```
+
+## Real-World Example
+
+Here's a complete example from VS Code's codebase:
+
+```typescript
+registerAction2(class extends Action2 {
+  constructor() {
+    super({
+      id: 'workbench.action.closeActiveEditor',
+      title: {
+        value: localize('closeActiveEditor', "Close Editor"),
+        original: 'Close Editor',
+        mnemonicTitle: localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "&&Close Editor")
+      },
+      f1: true,
+      category: Categories.View,
+      precondition: undefined,
+      keybinding: {
+        weight: KeybindingWeight.WorkbenchContrib,
+        when: undefined,
+        primary: KeyMod.CtrlCmd | KeyCode.KeyW,
+        win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] }
+      },
+      menu: [
+        {
+          id: MenuId.EditorTitleContext,
+          group: '1_close',
+          order: 10,
+          when: ContextKeyExpr.not('config.workbench.editor.showTabs.enabled')
+        }
+      ],
+      icon: Codicon.close
+    });
+  }
+
+  async run(accessor: ServicesAccessor): Promise<void> {
+    const editorService = accessor.get(IEditorService);
+    const activeEditor = editorService.activeEditorPane;
+    
+    if (activeEditor) {
+      await editorService.closeEditor(activeEditor);
+    }
+  }
+});
+```
+
+## Best Practices
+
+<Info>
+**Use Action2**: Always prefer `Action2` and `registerAction2()` over the older action registration methods. It's more concise and maintainable.
+</Info>
+
+<Note>
+**Localize strings**: Always use `ILocalizedString` with both `value` and `original` properties for all user-facing text.
+</Note>
+
+<Info>
+**Context awareness**: Use `when` clauses to show actions only in relevant contexts. This keeps menus clean and improves UX.
+</Info>
+
+<Note>
+**Group and order**: Use consistent grouping and ordering conventions to keep related actions together.
+</Note>
+
+## See Also
+
+- [Keybindings](/api/platform/keybindings)
+- [Context Keys](/api/platform/context-keys)
+- [Menu Contribution](/extensions/menus)
+- [Commands API](/api/commands)

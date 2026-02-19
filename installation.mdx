@@ -1,0 +1,550 @@
+---
+title: "Installation"
+description: "Install Visual Studio Code on Windows, macOS, and Linux"
+---
+
+## System Requirements
+
+VS Code is a small download (< 100 MB) and has a minimal disk footprint (< 500 MB). It runs well on these platforms:
+
+<CardGroup cols={3}>
+  <Card icon="windows" title="Windows">
+    Windows 10 or later (64-bit)
+    
+    **Recommended:**
+    - 1.6 GHz or faster processor
+    - 1 GB RAM
+  </Card>
+  
+  <Card icon="apple" title="macOS">
+    macOS 10.15 (Catalina) or later
+    
+    **Supports:**
+    - Intel and Apple Silicon (M1/M2/M3)
+    - Universal binary
+  </Card>
+  
+  <Card icon="linux" title="Linux">
+    64-bit Ubuntu, Debian, Red Hat, Fedora, SUSE
+    
+    **Requires:**
+    - GLIBCXX 3.4.25 or later
+    - GLIBC 2.28 or later
+  </Card>
+</CardGroup>
+
+<Note>
+  VS Code ships monthly with new features and bug fixes. You can download the latest stable release from [code.visualstudio.com](https://code.visualstudio.com/Download).
+</Note>
+
+## Installation by Platform
+
+<Tabs>
+  <Tab title="Windows">
+    ### Windows Installation
+    
+    <Steps>
+      <Step title="Download the Installer">
+        Visit [code.visualstudio.com/Download](https://code.visualstudio.com/Download) and download the Windows installer.
+        
+        **Options:**
+        - **User Installer** (recommended) - Installs for current user only, no admin rights required
+        - **System Installer** - Installs for all users, requires admin rights
+        - **ZIP Archive** - Portable installation
+      </Step>
+      
+      <Step title="Run the Installer">
+        1. Double-click the downloaded `.exe` file
+        2. Accept the license agreement
+        3. Choose installation location
+        4. Select additional tasks (recommended options checked by default)
+      </Step>
+      
+      <Step title="Additional Tasks">
+        During installation, you can enable these options:
+        
+        - **Add "Open with Code" action to Windows Explorer file context menu**
+        - **Add "Open with Code" action to Windows Explorer directory context menu**
+        - **Register Code as an editor for supported file types**
+        - **Add to PATH** (allows running `code` from command line)
+        
+        <Tip>
+          We recommend enabling all options for the best experience.
+        </Tip>
+      </Step>
+      
+      <Step title="Launch VS Code">
+        After installation completes, you can launch VS Code from:
+        - Start menu
+        - Desktop shortcut (if created)
+        - Command Prompt or PowerShell with `code`
+      </Step>
+    </Steps>
+    
+    ### Windows Package Managers
+    
+    You can also install VS Code using package managers:
+    
+    <CodeGroup>
+    ```powershell Winget
+    # Using Windows Package Manager (winget)
+    winget install Microsoft.VisualStudioCode
+    ```
+    
+    ```powershell Chocolatey
+    # Using Chocolatey
+    choco install vscode
+    ```
+    
+    ```powershell Scoop
+    # Using Scoop
+    scoop bucket add extras
+    scoop install vscode
+    ```
+    </CodeGroup>
+    
+    ### Windows Subsystem for Linux (WSL)
+    
+    To use VS Code with WSL:
+    
+    1. Install VS Code on Windows
+    2. Install the [Remote - WSL extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-wsl)
+    3. Open a WSL terminal and run: `code .`
+    
+    <Note>
+      VS Code will automatically connect to your WSL distribution.
+    </Note>
+  </Tab>
+  
+  <Tab title="macOS">
+    ### macOS Installation
+    
+    <Steps>
+      <Step title="Download VS Code">
+        Visit [code.visualstudio.com/Download](https://code.visualstudio.com/Download) and download the macOS .zip file.
+        
+        <Note>
+          The download is a universal binary that works on both Intel and Apple Silicon Macs.
+        </Note>
+      </Step>
+      
+      <Step title="Install the Application">
+        1. Open the downloaded .zip file (Safari does this automatically)
+        2. Drag **Visual Studio Code.app** to the **Applications** folder
+        3. This makes VS Code available in Launchpad
+      </Step>
+      
+      <Step title="Launch VS Code">
+        You can launch VS Code from:
+        - Launchpad
+        - Spotlight (press `Cmd+Space` and type "Visual Studio Code")
+        - Applications folder
+      </Step>
+      
+      <Step title="Add to PATH (Optional)">
+        To run `code` from the terminal:
+        
+        1. Open VS Code
+        2. Press `Cmd+Shift+P` to open Command Palette
+        3. Type "shell command" and select **Shell Command: Install 'code' command in PATH**
+        4. Restart your terminal
+        
+        Now you can open files and folders with:
+        
+        ```bash
+        code /path/to/project
+        code file.txt
+        ```
+      </Step>
+    </Steps>
+    
+    ### macOS Package Managers
+    
+    <CodeGroup>
+    ```bash Homebrew
+    # Using Homebrew
+    brew install --cask visual-studio-code
+    ```
+    
+    ```bash MacPorts
+    # Using MacPorts
+    sudo port install vscode
+    ```
+    </CodeGroup>
+    
+    ### macOS Security
+    
+    If you see a message that VS Code "cannot be opened because the developer cannot be verified":
+    
+    1. Open **System Preferences** > **Security & Privacy**
+    2. Click **Open Anyway** in the General tab
+    3. Confirm you want to open the application
+    
+    <Tip>
+      This only happens on the first launch. macOS remembers your choice.
+    </Tip>
+  </Tab>
+  
+  <Tab title="Linux">
+    ### Linux Installation
+    
+    VS Code supports Debian/Ubuntu, Red Hat/Fedora/SUSE, and other Linux distributions.
+    
+    <Tabs>
+      <Tab title="Debian/Ubuntu">
+        <Steps>
+          <Step title="Install via APT Repository">
+            This method ensures automatic updates:
+            
+            ```bash
+            # Update package index and install dependencies
+            sudo apt-get update
+            sudo apt-get install wget gpg
+            
+            # Download and install Microsoft GPG key
+            wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+            sudo install -D -o root -g root -m 644 packages.microsoft.gpg /etc/apt/keyrings/packages.microsoft.gpg
+            
+            # Add VS Code repository
+            echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" | sudo tee /etc/apt/sources.list.d/vscode.list > /dev/null
+            
+            # Update package cache and install VS Code
+            sudo apt-get update
+            sudo apt-get install code
+            ```
+          </Step>
+          
+          <Step title="Install via .deb Package">
+            Alternatively, download and install the .deb package:
+            
+            ```bash
+            # Download the .deb package
+            wget https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-x64 -O vscode.deb
+            
+            # Install the package
+            sudo apt install ./vscode.deb
+            ```
+          </Step>
+        </Steps>
+      </Tab>
+      
+      <Tab title="Red Hat/Fedora/SUSE">
+        <Steps>
+          <Step title="Install via YUM Repository">
+            For Red Hat and Fedora:
+            
+            ```bash
+            # Import Microsoft GPG key
+            sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
+            
+            # Add repository
+            echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" | sudo tee /etc/yum.repos.d/vscode.repo > /dev/null
+            
+            # Update cache and install
+            dnf check-update
+            sudo dnf install code
+            ```
+          </Step>
+          
+          <Step title="Install via Zypper (SUSE/openSUSE)">
+            For SUSE and openSUSE:
+            
+            ```bash
+            # Import Microsoft GPG key
+            sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
+            
+            # Add repository
+            sudo zypper addrepo https://packages.microsoft.com/yumrepos/vscode vscode
+            
+            # Install
+            sudo zypper refresh
+            sudo zypper install code
+            ```
+          </Step>
+          
+          <Step title="Install via .rpm Package">
+            Or download and install the .rpm package:
+            
+            ```bash
+            # Download and install
+            sudo rpm -ivh https://code.visualstudio.com/sha/download?build=stable&os=linux-rpm-x64
+            ```
+          </Step>
+        </Steps>
+      </Tab>
+      
+      <Tab title="Snap">
+        Install via Snap (works on most distributions):
+        
+        ```bash
+        sudo snap install --classic code
+        ```
+        
+        <Note>
+          The Snap package updates automatically in the background.
+        </Note>
+      </Tab>
+      
+      <Tab title="Flatpak">
+        Install via Flatpak:
+        
+        ```bash
+        flatpak install flathub com.visualstudio.code
+        ```
+        
+        Run with:
+        ```bash
+        flatpak run com.visualstudio.code
+        ```
+      </Tab>
+    </Tabs>
+    
+    ### Launch VS Code on Linux
+    
+    After installation, you can launch VS Code:
+    
+    ```bash
+    # From terminal
+    code
+    
+    # Open a specific folder
+    code /path/to/project
+    
+    # Open a file
+    code file.txt
+    ```
+    
+    Or launch from your application menu.
+    
+    ### Linux Troubleshooting
+    
+    <AccordionGroup>
+      <Accordion icon="key" title="GPG Key Issues">
+        If you get GPG errors during installation:
+        
+        ```bash
+        # Clear cached keys and reinstall
+        sudo apt-key del BC528686B50D79E339D3721CEB3E94ADBE1229CF
+        wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+        sudo install -D -o root -g root -m 644 packages.microsoft.gpg /etc/apt/keyrings/packages.microsoft.gpg
+        ```
+      </Accordion>
+      
+      <Accordion icon="circle-exclamation" title="Missing Dependencies">
+        If VS Code fails to launch due to missing libraries:
+        
+        ```bash
+        # Install required dependencies
+        sudo apt-get install libxss1 libgconf-2-4 libnss3 libx11-xcb1
+        ```
+      </Accordion>
+    </AccordionGroup>
+  </Tab>
+</Tabs>
+
+## Alternative Installations
+
+<CardGroup cols={2}>
+  <Card
+    title="VS Code Insiders"
+    icon="flask"
+    href="https://code.visualstudio.com/insiders"
+  >
+    Get daily builds with the latest features and bug fixes. Runs side-by-side with stable.
+  </Card>
+  
+  <Card
+    title="Portable Mode"
+    icon="briefcase"
+  >
+    Run VS Code from a USB drive. Download the ZIP/TAR.GZ and create a `data` folder next to the executable.
+  </Card>
+  
+  <Card
+    title="VS Code Server"
+    icon="server"
+  >
+    Run VS Code on a remote server and connect from any browser with VS Code for the Web.
+  </Card>
+  
+  <Card
+    title="GitHub Codespaces"
+    icon="cloud"
+    href="https://github.com/features/codespaces"
+  >
+    Use VS Code in the cloud with a complete development environment.
+  </Card>
+</CardGroup>
+
+## Post-Installation Setup
+
+<Steps>
+  <Step title="Verify Installation">
+    Open a terminal and run:
+    
+    ```bash
+    code --version
+    ```
+    
+    You should see the version number, commit, and architecture.
+  </Step>
+  
+  <Step title="Install Extensions">
+    Enhance VS Code with extensions for your programming languages:
+    
+    1. Open VS Code
+    2. Press `Ctrl+Shift+X` / `Cmd+Shift+X` to open Extensions view
+    3. Search and install extensions for your languages:
+       - **Python** for Python development
+       - **ESLint** for JavaScript/TypeScript linting
+       - **C/C++** for C/C++ development
+       - **Java Extension Pack** for Java development
+  </Step>
+  
+  <Step title="Configure Settings">
+    Customize VS Code to your preferences:
+    
+    1. Press `Ctrl+,` / `Cmd+,` to open Settings
+    2. Search for settings to customize:
+       - Font size and family
+       - Color theme
+       - Auto save
+       - Format on save
+  </Step>
+  
+  <Step title="Set Up Sync">
+    Sync your settings, extensions, and keybindings across devices:
+    
+    1. Click the account icon in the lower left
+    2. Select **Turn on Settings Sync**
+    3. Sign in with Microsoft or GitHub
+    4. Choose what to sync
+  </Step>
+</Steps>
+
+## Update VS Code
+
+VS Code will notify you when an update is available:
+
+<Tabs>
+  <Tab title="Windows">
+    VS Code will download and prompt you to restart to apply the update.
+    
+    **Manual Update:**
+    - Download the latest installer from [code.visualstudio.com](https://code.visualstudio.com/Download)
+    - Run the installer (it will update your existing installation)
+  </Tab>
+  
+  <Tab title="macOS">
+    VS Code will download the update and prompt you to restart.
+    
+    **Manual Update:**
+    - Download the latest .zip from [code.visualstudio.com](https://code.visualstudio.com/Download)
+    - Replace the app in your Applications folder
+  </Tab>
+  
+  <Tab title="Linux">
+    If you installed via repository, updates come through your package manager:
+    
+    ```bash
+    # APT (Debian/Ubuntu)
+    sudo apt-get update
+    sudo apt-get upgrade code
+    
+    # DNF (Fedora)
+    sudo dnf upgrade code
+    
+    # Snap (updates automatically)
+    sudo snap refresh code
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  VS Code typically releases updates monthly. Enable automatic updates in **File** > **Preferences** > **Settings** > **Update: Mode**.
+</Note>
+
+## Uninstalling VS Code
+
+<AccordionGroup>
+  <Accordion icon="windows" title="Windows Uninstall">
+    1. Open **Settings** > **Apps** > **Apps & features**
+    2. Search for "Visual Studio Code"
+    3. Click the three dots and select **Uninstall**
+    4. Follow the uninstall wizard
+    
+    To remove user data:
+    ```powershell
+    rmdir /s "%APPDATA%\Code"
+    rmdir /s "%USERPROFILE%\.vscode"
+    ```
+  </Accordion>
+  
+  <Accordion icon="apple" title="macOS Uninstall">
+    1. Quit VS Code
+    2. Open the Applications folder
+    3. Drag Visual Studio Code to the Trash
+    4. Empty the Trash
+    
+    To remove user data:
+    ```bash
+    rm -rf ~/Library/Application\ Support/Code
+    rm -rf ~/.vscode
+    ```
+  </Accordion>
+  
+  <Accordion icon="linux" title="Linux Uninstall">
+    ```bash
+    # APT (Debian/Ubuntu)
+    sudo apt-get remove code
+    
+    # DNF (Fedora)
+    sudo dnf remove code
+    
+    # Snap
+    sudo snap remove code
+    ```
+    
+    To remove user data:
+    ```bash
+    rm -rf ~/.config/Code
+    rm -rf ~/.vscode
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that you have VS Code installed:
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start Guide"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Learn the essential features in under 5 minutes
+  </Card>
+  
+  <Card
+    title="User Interface"
+    icon="window"
+  >
+    Understand the VS Code interface and layout
+  </Card>
+  
+  <Card
+    title="Extensions"
+    icon="puzzle-piece"
+    href="/extensions/overview"
+  >
+    Explore the vast ecosystem of extensions
+  </Card>
+  
+  <Card
+    title="Settings"
+    icon="gear"
+  >
+    Customize VS Code to match your workflow
+  </Card>
+</CardGroup>

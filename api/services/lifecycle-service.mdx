@@ -1,0 +1,596 @@
+---
+title: Lifecycle Service
+description: Guide to VS Code's Lifecycle Service for managing application lifecycle events
+---
+
+# Lifecycle Service
+
+The Lifecycle Service (`ILifecycleService`) is a workbench service that manages the application lifecycle, including startup phases, shutdown events, and window lifecycle. It allows components to participate in startup sequencing and handle shutdown gracefully.
+
+## Service Overview
+
+The Lifecycle Service is defined in `src/vs/workbench/services/lifecycle/common/lifecycle.ts:10` and coordinates the various phases of the application lifecycle.
+
+### Service Identifier
+
+```typescript
+export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
+```
+
+## Dependency Injection
+
+```typescript
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+
+export class MyService {
+  constructor(
+    @ILifecycleService private readonly lifecycleService: ILifecycleService
+  ) {
+    this.initialize();
+  }
+
+  private async initialize(): Promise<void> {
+    // Wait for the workbench to be ready
+    await this.lifecycleService.when(LifecyclePhase.Ready);
+    console.log('Workbench is ready!');
+  }
+}
+```
+
+## Lifecycle Phases
+
+VS Code goes through several phases during startup:
+
+<Accordion title="LifecyclePhase Enum">
+```typescript
+export const enum LifecyclePhase {
+  /**
+   * Starting phase - getting ready
+   * Note: Blocks editor from showing to the user
+   */
+  Starting = 1,
+
+  /**
+   * Ready phase - services are ready, about to restore UI
+   * Note: Blocks editor from showing to the user
+   */
+  Ready = 2,
+
+  /**
+   * Restored phase - views, panels, editors have restored
+   * Editors are given time to restore their contents
+   */
+  Restored = 3,
+
+  /**
+   * Eventually phase - everything is loaded and settled
+   * Occurs 2-5 seconds after Restored
+   */
+  Eventually = 4
+}
+```
+</Accordion>
+
+### Current Phase
+
+```typescript
+import { LifecyclePhase, LifecyclePhaseToString } from 'vs/workbench/services/lifecycle/common/lifecycle';
+
+const currentPhase = lifecycleService.phase;
+console.log('Current phase:', LifecyclePhaseToString(currentPhase));
+
+if (currentPhase >= LifecyclePhase.Restored) {
+  console.log('Workbench is fully restored');
+}
+```
+
+### Waiting for Phases
+
+```typescript
+// Wait for a specific phase
+await lifecycleService.when(LifecyclePhase.Ready);
+console.log('Services are ready');
+
+await lifecycleService.when(LifecyclePhase.Restored);
+console.log('UI is restored');
+
+await lifecycleService.when(LifecyclePhase.Eventually);
+console.log('Everything is loaded');
+
+// Use in async initialization
+export class LazyService {
+  constructor(
+    @ILifecycleService private lifecycleService: ILifecycleService
+  ) {}
+
+  async whenReady(): Promise<void> {
+    await this.lifecycleService.when(LifecyclePhase.Restored);
+    // Perform initialization that should happen after UI is restored
+  }
+}
+```
+
+<Info>
+  Work performed in `Starting` and `Ready` phases blocks the editor from showing to the user. Prefer doing work in `Restored` or `Eventually` phases when possible.
+</Info>
+
+## Startup Kind
+
+The service tracks how the window was started:
+
+```typescript
+import { StartupKind, StartupKindToString } from 'vs/workbench/services/lifecycle/common/lifecycle';
+
+const startupKind = lifecycleService.startupKind;
+
+switch (startupKind) {
+  case StartupKind.NewWindow:
+    console.log('Freshly opened window');
+    break;
+  case StartupKind.ReloadedWindow:
+    console.log('Window was reloaded');
+    break;
+  case StartupKind.ReopenedWindow:
+    console.log('Window was reopened (e.g., after restart)');
+    break;
+}
+
+console.log('Startup:', StartupKindToString(startupKind));
+```
+
+<Accordion title="StartupKind Enum">
+```typescript
+export const enum StartupKind {
+  NewWindow = 1,       // Freshly opened
+  ReloadedWindow = 3,  // Window reload
+  ReopenedWindow = 4   // Reopened after close
+}
+```
+</Accordion>
+
+## Shutdown Events
+
+### onBeforeShutdown - Veto Shutdown
+
+Allows components to prevent shutdown from happening:
+
+```typescript
+import { BeforeShutdownEvent, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+
+lifecycleService.onBeforeShutdown((event: BeforeShutdownEvent) => {
+  console.log('Shutdown reason:', event.reason);
+
+  // Synchronous veto
+  if (hasUnsavedChanges()) {
+    event.veto(true, 'myService.unsavedChanges');
+    return;
+  }
+
+  // Asynchronous veto
+  event.veto(
+    (async () => {
+      const shouldVeto = await askUserToSave();
+      return shouldVeto;
+    })(),
+    'myService.askUser'
+  );
+});
+```
+
+<ParamField path="event.reason" type="ShutdownReason" required>
+  The reason for shutdown (CLOSE, QUIT, RELOAD, LOAD)
+</ParamField>
+
+<ParamField path="event.veto" type="function" required>
+  Veto function - accepts boolean or Promise and an identifier
+</ParamField>
+
+<Accordion title="ShutdownReason Enum">
+```typescript
+export const enum ShutdownReason {
+  CLOSE = 1,  // Window is closing
+  QUIT,       // Application is quitting
+  RELOAD,     // Window is reloading
+  LOAD        // Loading different workspace
+}
+```
+</Accordion>
+
+<Note>
+  Returning a Promise from veto() blocks the shutdown sequence. Try to return synchronously when possible to avoid delays.
+</Note>
+
+### onShutdownVeto - Shutdown Prevented
+
+```typescript
+lifecycleService.onShutdownVeto(() => {
+  console.log('Shutdown was vetoed by a component');
+  // Update UI or state to reflect that shutdown was cancelled
+});
+```
+
+### onBeforeShutdownError - Veto Error
+
+```typescript
+import { BeforeShutdownErrorEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
+
+lifecycleService.onBeforeShutdownError((event: BeforeShutdownErrorEvent) => {
+  console.error('Error during shutdown veto handling:', event.error);
+  console.log('Shutdown reason was:', event.reason);
+  
+  // Shutdown will be cancelled due to the error
+});
+```
+
+### onWillShutdown - Join Shutdown Process
+
+Allows components to perform cleanup when shutdown is confirmed:
+
+```typescript
+import { WillShutdownEvent, WillShutdownJoinerOrder } from 'vs/workbench/services/lifecycle/common/lifecycle';
+
+lifecycleService.onWillShutdown((event: WillShutdownEvent) => {
+  console.log('Shutting down, reason:', event.reason);
+
+  // Join with a default order promise
+  event.join(
+    (async () => {
+      await saveApplicationState();
+      await closeConnections();
+    })(),
+    {
+      id: 'myService.cleanup',
+      label: 'Saving application state',
+      order: WillShutdownJoinerOrder.Default
+    }
+  );
+
+  // Or join at the very end (when services may be disposed)
+  event.join(
+    async () => {
+      await finalCleanup();
+    },
+    {
+      id: 'myService.finalCleanup',
+      label: 'Final cleanup',
+      order: WillShutdownJoinerOrder.Last
+    }
+  );
+
+  // Check if shutdown is being forced
+  if (event.token.isCancellationRequested) {
+    console.log('Shutdown is being forced, skip optional cleanup');
+    return;
+  }
+});
+```
+
+<ParamField path="event.reason" type="ShutdownReason" required>
+  The reason for shutdown
+</ParamField>
+
+<ParamField path="event.token" type="CancellationToken" required>
+  Cancellation token that signals if shutdown is being forced
+</ParamField>
+
+<ParamField path="event.join" type="function" required>
+  Join function to add async cleanup operations
+</ParamField>
+
+<ParamField path="event.force" type="function" required>
+  Force shutdown even if join operations haven't completed
+</ParamField>
+
+<Accordion title="WillShutdownJoinerOrder">
+```typescript
+export enum WillShutdownJoinerOrder {
+  /**
+   * Default order - services are still functional
+   * Use this for most cases
+   */
+  Default = 1,
+
+  /**
+   * Last order - services may be disposed
+   * Only use when you have no service dependencies
+   */
+  Last
+}
+```
+</Accordion>
+
+### onDidShutdown - After Shutdown
+
+```typescript
+lifecycleService.onDidShutdown(() => {
+  console.log('Shutdown completed, disposing resources');
+  // Final disposal logic
+});
+```
+
+### willShutdown Property
+
+```typescript
+// Check if shutdown is in progress
+if (lifecycleService.willShutdown) {
+  console.log('Shutdown is in progress');
+  // Don't start new long-running operations
+}
+```
+
+## Triggering Shutdown
+
+```typescript
+// Trigger shutdown programmatically
+await lifecycleService.shutdown();
+```
+
+<Note>
+  Normally you should not call `shutdown()` directly. Use `IHostService.close()` or `INativeHostService.quit()` instead to properly close windows or quit the application.
+</Note>
+
+## Common Use Cases
+
+### Deferred Initialization
+
+```typescript
+export class ExpensiveService {
+  private initialized = false;
+
+  constructor(
+    @ILifecycleService private lifecycleService: ILifecycleService
+  ) {
+    // Don't block startup
+    this.deferredInit();
+  }
+
+  private async deferredInit(): Promise<void> {
+    // Wait until UI is restored
+    await this.lifecycleService.when(LifecyclePhase.Restored);
+
+    // Now perform expensive initialization
+    await this.loadLargeDataset();
+    await this.initializeConnections();
+
+    this.initialized = true;
+  }
+
+  private async loadLargeDataset(): Promise<void> {
+    // Heavy initialization work
+  }
+
+  private async initializeConnections(): Promise<void> {
+    // Connect to services
+  }
+}
+```
+
+### Saving State on Shutdown
+
+```typescript
+export class StateManager {
+  private state: Map<string, any> = new Map();
+
+  constructor(
+    @ILifecycleService lifecycleService: ILifecycleService,
+    @IStorageService private storageService: IStorageService
+  ) {
+    this.registerShutdownHandler(lifecycleService);
+  }
+
+  private registerShutdownHandler(lifecycleService: ILifecycleService): void {
+    lifecycleService.onBeforeShutdown(event => {
+      // Check if we have unsaved state
+      if (this.hasUnsavedChanges()) {
+        event.veto(
+          this.askUserToSave(),
+          'stateManager.unsavedChanges'
+        );
+      }
+    });
+
+    lifecycleService.onWillShutdown(event => {
+      // Save state when shutdown is confirmed
+      event.join(
+        this.saveState(),
+        {
+          id: 'stateManager.save',
+          label: 'Saving application state'
+        }
+      );
+    });
+  }
+
+  private hasUnsavedChanges(): boolean {
+    return this.state.size > 0;
+  }
+
+  private async askUserToSave(): Promise<boolean> {
+    // Show dialog to user
+    const save = await showSaveDialog();
+    if (save) {
+      await this.saveState();
+      return false; // Don't veto
+    }
+    return true; // Veto shutdown
+  }
+
+  private async saveState(): Promise<void> {
+    for (const [key, value] of this.state) {
+      this.storageService.store(
+        key,
+        JSON.stringify(value),
+        StorageScope.WORKSPACE,
+        StorageTarget.MACHINE
+      );
+    }
+  }
+}
+```
+
+### Handling Window Reload
+
+```typescript
+export class ReloadHandler {
+  constructor(
+    @ILifecycleService private lifecycleService: ILifecycleService
+  ) {
+    this.handleReload();
+  }
+
+  private handleReload(): void {
+    // Detect reload on startup
+    if (this.lifecycleService.startupKind === StartupKind.ReloadedWindow) {
+      this.restoreAfterReload();
+    }
+
+    // Save state before reload
+    this.lifecycleService.onWillShutdown(event => {
+      if (event.reason === ShutdownReason.RELOAD) {
+        event.join(
+          this.saveStateForReload(),
+          {
+            id: 'reloadHandler.save',
+            label: 'Saving state for reload'
+          }
+        );
+      }
+    });
+  }
+
+  private restoreAfterReload(): void {
+    console.log('Restoring state after reload');
+    // Restore saved state
+  }
+
+  private async saveStateForReload(): Promise<void> {
+    console.log('Saving state before reload');
+    // Save state that should survive reload
+  }
+}
+```
+
+### Background Task Scheduling
+
+```typescript
+export class BackgroundTaskScheduler {
+  constructor(
+    @ILifecycleService private lifecycleService: ILifecycleService
+  ) {
+    this.scheduleBackgroundTasks();
+  }
+
+  private async scheduleBackgroundTasks(): Promise<void> {
+    // Wait until everything is loaded
+    await this.lifecycleService.when(LifecyclePhase.Eventually);
+
+    // Now it's safe to run background tasks
+    this.startIndexing();
+    this.syncSettings();
+    this.checkForUpdates();
+  }
+
+  private startIndexing(): void {
+    console.log('Starting background indexing');
+    // Index files in the background
+  }
+
+  private syncSettings(): void {
+    console.log('Syncing settings');
+    // Sync with cloud
+  }
+
+  private checkForUpdates(): void {
+    console.log('Checking for updates');
+    // Check for application updates
+  }
+}
+```
+
+### Cleanup on Shutdown
+
+```typescript
+export class ConnectionManager {
+  private connections: Connection[] = [];
+
+  constructor(
+    @ILifecycleService lifecycleService: ILifecycleService
+  ) {
+    this.registerCleanup(lifecycleService);
+  }
+
+  private registerCleanup(lifecycleService: ILifecycleService): void {
+    lifecycleService.onWillShutdown(event => {
+      // Close all connections on shutdown
+      event.join(
+        this.closeAllConnections(event.token),
+        {
+          id: 'connectionManager.cleanup',
+          label: 'Closing connections'
+        }
+      );
+    });
+  }
+
+  private async closeAllConnections(token: CancellationToken): Promise<void> {
+    const closePromises = this.connections.map(conn => 
+      this.closeConnection(conn, token)
+    );
+
+    await Promise.all(closePromises);
+    this.connections = [];
+  }
+
+  private async closeConnection(
+    connection: Connection,
+    token: CancellationToken
+  ): Promise<void> {
+    if (token.isCancellationRequested) {
+      // Force close immediately if shutdown is forced
+      connection.forceClose();
+      return;
+    }
+
+    // Graceful close
+    await connection.close();
+  }
+}
+```
+
+## Best Practices
+
+<Note>
+  **Defer Heavy Work**: Perform expensive initialization in `Restored` or `Eventually` phases to avoid blocking the UI.
+</Note>
+
+<Note>
+  **Synchronous Vetos**: Try to return synchronous veto decisions from `onBeforeShutdown` when possible to avoid delays.
+</Note>
+
+<Note>
+  **Cancellation Tokens**: Check `event.token.isCancellationRequested` in shutdown handlers to skip optional cleanup if shutdown is forced.
+</Note>
+
+<Note>
+  **Join Order**: Use `WillShutdownJoinerOrder.Default` unless you specifically need `Last` and have no service dependencies.
+</Note>
+
+<Note>
+  **Graceful Degradation**: Handle the case where services may already be disposed during `Last` order joiners.
+</Note>
+
+<Note>
+  **Unique IDs**: Use unique, descriptive IDs for vetos and joiners to help debug slow shutdowns.
+</Note>
+
+## Related Services
+
+- **IHostService** - For window management (close, reload)
+- **INativeHostService** - For native host operations (quit)
+- **IStorageService** - For persisting state across sessions
+
+## See Also
+
+- [Host Service](/api/services/host-service)
+- [Storage Service](/api/services/storage-service)
+- [Workbench Lifecycle](/architecture/workbench-lifecycle)

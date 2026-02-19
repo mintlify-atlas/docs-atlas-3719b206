@@ -1,0 +1,456 @@
+---
+title: Workbench Contributions
+description: Extending the workbench with contributions that load at specific lifecycle phases
+---
+
+Workbench contributions are the primary way to extend VS Code's functionality. They are classes that get instantiated at specific lifecycle phases and can register UI components, commands, keybindings, and more.
+
+## What are Contributions?
+
+A **workbench contribution** is a class that:
+
+- Implements `IWorkbenchContribution` interface
+- Is instantiated at a specific lifecycle phase
+- Uses dependency injection to access services
+- Registers functionality like commands, views, or event handlers
+- Is automatically disposed when the workbench shuts down
+
+<Info>
+Contributions are similar to extension activation, but they run in the core workbench process and have access to internal APIs.
+</Info>
+
+## Contribution Types
+
+### 1. Phase-Based Contributions
+
+Most contributions are loaded at a specific lifecycle phase:
+
+```typescript:src/vs/workbench/common/contributions.ts
+export const enum WorkbenchPhase {
+	/**
+	 * The first phase signals that we are about to startup getting ready.
+	 * Note: doing work in this phase blocks an editor from showing.
+	 */
+	BlockStartup = LifecyclePhase.Starting,
+
+	/**
+	 * Services are ready and the window is about to restore its UI state.
+	 * Note: doing work in this phase blocks an editor from showing.
+	 */
+	BlockRestore = LifecyclePhase.Ready,
+
+	/**
+	 * Views, panels and editors have restored.
+	 */
+	AfterRestored = LifecyclePhase.Restored,
+
+	/**
+	 * The last phase after everything has restored (2-5 seconds).
+	 */
+	Eventually = LifecyclePhase.Eventually
+}
+```
+
+### 2. Lazy Contributions
+
+Contributions that load only when explicitly requested:
+
+```typescript
+export interface ILazyWorkbenchContributionInstantiation {
+	readonly lazy: true;
+}
+```
+
+### 3. Editor-Specific Contributions
+
+Contributions that load when a specific editor type is opened:
+
+```typescript
+export interface IOnEditorWorkbenchContributionInstantiation {
+	readonly editorTypeId: string;
+}
+```
+
+## Creating a Contribution
+
+### Basic Contribution
+
+```typescript
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ILogService } from 'vs/platform/log/common/log';
+
+export class MyWorkbenchContribution extends Disposable implements IWorkbenchContribution {
+	
+	constructor(
+		@IEditorService private readonly editorService: IEditorService,
+		@ILogService private readonly logService: ILogService
+	) {
+		super();
+		
+		this.logService.info('MyWorkbenchContribution loaded');
+		
+		// Register event handlers
+		this._register(this.editorService.onDidActiveEditorChange(() => {
+			this.onActiveEditorChanged();
+		}));
+		
+		// Initialize functionality
+		this.initialize();
+	}
+	
+	private initialize(): void {
+		// Setup logic
+	}
+	
+	private onActiveEditorChanged(): void {
+		const editor = this.editorService.activeEditor;
+		this.logService.info('Active editor changed:', editor?.resource?.toString());
+	}
+}
+```
+
+### Registering a Contribution
+
+Use the new `registerWorkbenchContribution2` API:
+
+```typescript
+import { registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
+
+// Register with a specific phase
+registerWorkbenchContribution2(
+	'myExtension.myContribution', // Unique ID
+	MyWorkbenchContribution,
+	WorkbenchPhase.AfterRestored  // Load after UI is restored
+);
+```
+
+<Note>
+Always provide a unique ID for contributions to enable tracking and debugging.
+</Note>
+
+## Real-World Examples
+
+### Example 1: Debug Contribution
+
+From the Debug feature:
+
+```typescript:src/vs/workbench/contrib/debug/browser/debug.contribution.ts
+import { registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+
+// Register Debug Workbench Contributions
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(DebugStatusContribution, LifecyclePhase.Eventually);
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(DebugProgressContribution, LifecyclePhase.Eventually);
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(DebugToolBar, LifecyclePhase.Restored);
+
+registerWorkbenchContribution2(
+	DebugChatContextContribution.ID,
+	DebugChatContextContribution,
+	WorkbenchPhase.AfterRestored
+);
+```
+
+The Debug feature registers multiple contributions at different phases:
+- **Eventually**: Status and progress indicators (non-critical)
+- **Restored**: Debug toolbar (visible immediately)
+- **AfterRestored**: Chat integration (after UI is ready)
+
+### Example 2: View Container Registration
+
+Registering a custom view container:
+
+```typescript
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IViewContainersRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+
+// Create view container
+const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry)
+	.registerViewContainer({
+		id: 'myViewContainer',
+		title: 'My View Container',
+		icon: myIcon,
+		order: 5,
+		ctorDescriptor: new SyncDescriptor(ViewPaneContainer, ['myViewContainer', { mergeViewWithContainerWhenSingleView: true }])
+	}, ViewContainerLocation.Sidebar);
+```
+
+### Example 3: Command Registration
+
+Registering commands in a contribution:
+
+```typescript
+import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+
+export class MyCommandsContribution extends Disposable implements IWorkbenchContribution {
+	
+	constructor() {
+		super();
+		
+		// Register commands
+		this.registerCommands();
+	}
+	
+	private registerCommands(): void {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'myExtension.myCommand',
+					title: 'My Command',
+					category: 'My Extension',
+					f1: true // Show in command palette
+				});
+			}
+			
+			async run(accessor: ServicesAccessor) {
+				const editorService = accessor.get(IEditorService);
+				const notificationService = accessor.get(INotificationService);
+				
+				// Command implementation
+				notificationService.info('Command executed!');
+			}
+		});
+	}
+}
+```
+
+## Contribution Patterns
+
+### Pattern 1: Event Handler Contribution
+
+React to workbench events:
+
+```typescript
+export class FileWatcherContribution extends Disposable implements IWorkbenchContribution {
+	
+	constructor(
+		@IFileService private readonly fileService: IFileService,
+		@INotificationService private readonly notificationService: INotificationService
+	) {
+		super();
+		
+		// Watch for file changes
+		this._register(this.fileService.onDidFilesChange(event => {
+			for (const change of event.changes) {
+				if (change.type === FileChangeType.DELETED) {
+					this.handleFileDeleted(change.resource);
+				}
+			}
+		}));
+	}
+	
+	private handleFileDeleted(resource: URI): void {
+		this.notificationService.warn(`File deleted: ${resource.fsPath}`);
+	}
+}
+```
+
+### Pattern 2: Configuration Listener
+
+Respond to configuration changes:
+
+```typescript
+export class ThemeContribution extends Disposable implements IWorkbenchContribution {
+	
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IThemeService private readonly themeService: IThemeService
+	) {
+		super();
+		
+		// Apply initial theme
+		this.applyTheme();
+		
+		// Listen for changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.colorTheme')) {
+				this.applyTheme();
+			}
+		}));
+	}
+	
+	private applyTheme(): void {
+		const themeName = this.configurationService.getValue<string>('workbench.colorTheme');
+		// Apply custom theme logic
+	}
+}
+```
+
+### Pattern 3: Lifecycle-Aware Contribution
+
+Perform actions at specific lifecycle events:
+
+```typescript
+export class StartupContribution extends Disposable implements IWorkbenchContribution {
+	
+	constructor(
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IEditorService private readonly editorService: IEditorService
+	) {
+		super();
+		
+		// Wait until workbench is fully restored
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
+			this.onWorkbenchRestored();
+		});
+		
+		// Handle shutdown
+		this._register(this.lifecycleService.onWillShutdown(event => {
+			event.join(
+				this.saveState(),
+				{ id: 'startupContribution', label: 'Saving startup state' }
+			);
+		}));
+	}
+	
+	private onWorkbenchRestored(): void {
+		// Perform post-restore actions
+		console.log('Workbench fully restored!');
+	}
+	
+	private async saveState(): Promise<void> {
+		// Save state before shutdown
+	}
+}
+```
+
+## Choosing the Right Phase
+
+<Accordion title="Phase Selection Guidelines">
+
+### BlockStartup
+**Use when:**
+- Absolutely critical for workbench initialization
+- Must run before any UI is shown
+- Very rare - avoid if possible
+
+**Example:** Core error handler setup
+
+### BlockRestore
+**Use when:**
+- Required for UI restoration
+- Must run before editors are shown
+- Still blocks UI - use sparingly
+
+**Example:** Layout service initialization
+
+### AfterRestored (Recommended)
+**Use when:**
+- Most feature contributions
+- Can wait until UI is visible
+- Doesn't impact initial load time
+
+**Example:** Command registration, view providers, menu items
+
+### Eventually
+**Use when:**
+- Non-critical features
+- Can load in background
+- Doesn't affect user experience if delayed
+
+**Example:** Telemetry, background analyzers, optional integrations
+
+</Accordion>
+
+## Lazy Contributions
+
+For features that should only load when needed:
+
+```typescript
+// Register as lazy
+registerWorkbenchContribution2(
+	'myExtension.lazyFeature',
+	MyLazyContribution,
+	{ lazy: true }
+);
+
+// Later, explicitly instantiate
+import { IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
+
+const registry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
+const contribution = registry.getWorkbenchContribution('myExtension.lazyFeature');
+```
+
+## Editor-Specific Contributions
+
+Load contributions only when specific editor types open:
+
+```typescript
+registerWorkbenchContribution2(
+	'myExtension.notebookFeature',
+	NotebookContribution,
+	{ editorTypeId: 'jupyter-notebook' }
+);
+```
+
+This contribution only loads when a Jupyter notebook is opened.
+
+## Best Practices
+
+<Accordion title="Contribution Best Practices">
+
+1. **Choose the Right Phase**: Use `AfterRestored` or `Eventually` unless you have a specific reason
+2. **Keep Constructors Light**: Move heavy initialization to async methods
+3. **Dispose Properly**: Always extend `Disposable` and use `_register()`
+4. **Use Unique IDs**: Provide descriptive, unique IDs for all contributions
+5. **Avoid Side Effects**: Don't perform actions that modify global state in constructor
+6. **Lazy Load When Possible**: Use lazy contributions for optional features
+7. **Handle Errors Gracefully**: Wrap initialization in try-catch to avoid breaking workbench
+8. **Document Dependencies**: Clearly document which services your contribution requires
+
+</Accordion>
+
+## Debugging Contributions
+
+VS Code provides tools to debug contribution loading:
+
+```typescript
+// Enable contribution logging
+this.logService.info('MyContribution loaded at', Date.now());
+
+// Check contribution timings
+const registry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
+for (const [phase, timings] of registry.timings) {
+	console.log(`Phase ${phase}:`);
+	for (const [id, time] of timings) {
+		console.log(`  ${id}: ${time}ms`);
+	}
+}
+```
+
+## Migration from Old API
+
+If you're using the deprecated API:
+
+```typescript
+// OLD (deprecated)
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(MyContribution, LifecyclePhase.Restored);
+
+// NEW (recommended)
+registerWorkbenchContribution2(
+	'myExtension.myContribution',
+	MyContribution,
+	WorkbenchPhase.AfterRestored
+);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Views and Panels" icon="window" href="/workbench/views-and-panels">
+    Learn how to create custom views in contributions
+  </Card>
+  <Card title="Commands and Menus" icon="terminal" href="/api/commands">
+    Register commands and menu items in contributions
+  </Card>
+</CardGroup>

@@ -1,0 +1,331 @@
+---
+title: CLI Installation
+description: How to install and set up the Visual Studio Code CLI
+---
+
+The Visual Studio Code CLI is available for Windows, macOS, and Linux. This guide will help you install and configure the CLI on your system.
+
+## Installation Methods
+
+<Tabs>
+  <Tab title="With VS Code">
+    The CLI is included with VS Code installations. After installing VS Code, the `code` command should be available in your terminal.
+
+    ### Verifying Installation
+
+    ```bash
+    code --version
+    ```
+
+    If the command is not found, you may need to add it to your PATH:
+
+    <Tabs>
+      <Tab title="Windows">
+        The installer should add VS Code to your PATH automatically. If not:
+
+        1. Open VS Code
+        2. Press `Ctrl+Shift+P` to open the Command Palette
+        3. Type "shell command" and select **Shell Command: Install 'code' command in PATH**
+      </Tab>
+
+      <Tab title="macOS">
+        1. Open VS Code
+        2. Press `Cmd+Shift+P` to open the Command Palette
+        3. Type "shell command" and select **Shell Command: Install 'code' command in PATH**
+        
+        Or manually add to your shell profile:
+        ```bash
+        export PATH="$PATH:/Applications/Visual Studio Code.app/Contents/Resources/app/bin"
+        ```
+      </Tab>
+
+      <Tab title="Linux">
+        The `.deb` and `.rpm` packages should add `code` to your PATH automatically.
+        
+        For other installations, add VS Code to your PATH:
+        ```bash
+        export PATH="$PATH:/path/to/vscode/bin"
+        ```
+      </Tab>
+    </Tabs>
+  </Tab>
+
+  <Tab title="Standalone CLI">
+    You can also download the standalone CLI binary:
+
+    <Steps>
+      <Step title="Download the CLI">
+        Download the appropriate binary for your platform from the [VS Code downloads page](https://code.visualstudio.com/download).
+      </Step>
+
+      <Step title="Extract the binary">
+        Extract the downloaded archive to a location of your choice.
+      </Step>
+
+      <Step title="Add to PATH">
+        Add the CLI binary location to your system PATH.
+
+        <Tabs>
+          <Tab title="Linux/macOS">
+            ```bash
+            # Add to ~/.bashrc, ~/.zshrc, or equivalent
+            export PATH="$PATH:/path/to/cli"
+            ```
+          </Tab>
+
+          <Tab title="Windows">
+            Add the CLI directory to your PATH through System Environment Variables:
+            1. Open System Properties > Environment Variables
+            2. Edit the PATH variable
+            3. Add the path to the CLI directory
+          </Tab>
+        </Tabs>
+      </Step>
+
+      <Step title="Verify installation">
+        ```bash
+        code --version
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Building from Source
+
+For developers who want to build the CLI from source:
+
+<Note>
+Building from source requires Rust toolchain and additional dependencies.
+</Note>
+
+### Prerequisites
+
+<Steps>
+  <Step title="Install Rust">
+    Install Rust using rustup:
+    ```bash
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+    ```
+  </Step>
+
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/microsoft/vscode.git
+    cd vscode
+    git submodule update --init --recursive
+    ```
+  </Step>
+
+  <Step title="Navigate to CLI directory">
+    ```bash
+    cd cli
+    ```
+  </Step>
+
+  <Step title="Install platform-specific dependencies">
+    <Tabs>
+      <Tab title="Windows">
+        Install OpenSSL:
+        ```powershell
+        # Install vcpkg
+        git clone https://github.com/Microsoft/vcpkg.git
+        cd vcpkg
+        .\bootstrap-vcpkg.bat
+        
+        # Install OpenSSL
+        .\vcpkg install openssl:x64-windows-static-md
+        ```
+      </Tab>
+
+      <Tab title="Linux">
+        Install development packages:
+        ```bash
+        # Ubuntu/Debian
+        sudo apt-get install libssl-dev pkg-config
+        
+        # Fedora/RHEL
+        sudo dnf install openssl-devel
+        ```
+      </Tab>
+
+      <Tab title="macOS">
+        OpenSSL should be available via Homebrew:
+        ```bash
+        brew install openssl
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Build the CLI">
+    ```bash
+    cargo build --release
+    ```
+    
+    The compiled binary will be in `target/release/code`.
+  </Step>
+</Steps>
+
+<Accordion title="Windows OpenSSL Details">
+  On Windows, OpenSSL is required for key exchange in tunnel forwarding. The CLI uses OpenSSL for cryptographic operations until all Chromium-based clients support ED25519 key exchange natively.
+
+  Steps to install:
+  1. Follow [vcpkg setup instructions](https://learn.microsoft.com/en-us/vcpkg/get_started/get-started-msbuild)
+  2. Add vcpkg directory to your PATH
+  3. Run `vcpkg install openssl:x64-windows-static-md`
+  4. Restart your terminal
+  5. Run `cargo build`
+</Accordion>
+
+## Post-Installation Setup
+
+### Setting Default Data Directory
+
+The CLI stores its data in a default directory. You can customize this:
+
+```bash
+# Set via environment variable
+export VSCODE_CLI_DATA_DIR="$HOME/.vscode-cli"
+
+# Or use the flag with each command
+code --cli-data-dir "$HOME/.vscode-cli" tunnel
+```
+
+### Configuring Logging
+
+Set up logging for debugging:
+
+```bash
+# Enable verbose logging
+code --verbose tunnel
+
+# Set specific log level
+code --log debug tunnel
+
+# Log to a file
+code --log-to-file /path/to/logfile.log tunnel
+```
+
+## Verifying Installation
+
+Run these commands to verify your installation:
+
+<CodeGroup>
+```bash Check version
+code --version
+```
+
+```bash Check help
+code --help
+```
+
+```bash List available commands
+code tunnel --help
+code ext --help
+code version --help
+```
+</CodeGroup>
+
+Expected output:
+```bash
+Visual Studio Code CLI - 1.x.x (commit xxxxxxxx)
+
+Usage: code [options][paths...]
+
+To read output from another program, append '-' (e.g. 'echo Hello World | code -')
+...
+```
+
+## Updating the CLI
+
+### Integrated CLI
+
+When installed with VS Code, the CLI updates automatically when you update VS Code.
+
+### Standalone CLI
+
+For standalone installations, use the update command:
+
+```bash
+# Check for updates
+code update --check
+
+# Update to the latest version
+code update
+```
+
+<Note>
+The `update` command is only available in standalone CLI installations.
+</Note>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Command not found: code">
+    **Solution:**
+    1. Verify VS Code is installed: Check if VS Code exists in your Applications/Program Files
+    2. Add to PATH manually (see installation methods above)
+    3. Restart your terminal after adding to PATH
+    4. On macOS/Linux, make sure your shell profile is sourced: `source ~/.bashrc` or `source ~/.zshrc`
+  </Accordion>
+
+  <Accordion title="Build fails on Windows with OpenSSL error">
+    **Solution:**
+    1. Ensure vcpkg is properly installed
+    2. Verify OpenSSL package: `vcpkg list | grep openssl`
+    3. Install the correct variant: `vcpkg install openssl:x64-windows-static-md`
+    4. Restart your terminal and try building again
+  </Accordion>
+
+  <Accordion title="Permission denied errors on Linux/macOS">
+    **Solution:**
+    1. Make the binary executable: `chmod +x /path/to/code`
+    2. Check directory permissions
+    3. Don't run with sudo unless necessary
+  </Accordion>
+
+  <Accordion title="CLI version mismatch with VS Code">
+    **Solution:**
+    1. Ensure you're using the correct binary (check with `which code`)
+    2. Update VS Code to the latest version
+    3. Reinstall the shell command from VS Code's Command Palette
+  </Accordion>
+</AccordionGroup>
+
+## Uninstallation
+
+<Tabs>
+  <Tab title="With VS Code">
+    The CLI is removed when you uninstall VS Code. You may also need to:
+    1. Remove the PATH entry from your shell profile
+    2. Delete CLI data directory: `~/.vscode-oss/cli` or `~/.vscode/cli`
+  </Tab>
+
+  <Tab title="Standalone">
+    1. Remove the CLI binary
+    2. Remove the PATH entry from your shell profile
+    3. Delete CLI data directory: `~/.vscode-oss/cli` or `~/.vscode/cli`
+    4. Remove any systemd/launchd services if tunnel service was installed
+  </Tab>
+</Tabs>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Commands Reference" icon="terminal" href="/cli/commands">
+    Explore all available CLI commands
+  </Card>
+  
+  <Card title="Remote Tunnels" icon="network-wired" href="/cli/tunnel">
+    Set up remote access with tunnels
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/cli/configuration">
+    Configure the CLI for your needs
+  </Card>
+  
+  <Card title="CLI Overview" icon="book" href="/cli/overview">
+    Learn more about CLI features
+  </Card>
+</CardGroup>

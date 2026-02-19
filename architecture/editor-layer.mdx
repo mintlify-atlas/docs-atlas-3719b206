@@ -1,0 +1,651 @@
+---
+title: Editor Layer
+description: Text editor implementation with language services and editing features
+---
+
+## Overview
+
+The Editor Layer (`src/vs/editor/`) implements VS Code's powerful text editor, known as **Monaco Editor**. This layer handles text rendering, editing operations, language features, and provides the foundation for the code editing experience.
+
+## Architecture
+
+The editor is split into several key areas:
+
+```
+src/vs/editor/
+├── browser/           # Editor UI and rendering
+│   ├── controller/    # Input handling
+│   ├── view/          # View rendering
+│   └── widget/        # Editor widgets
+├── common/            # Editor model and logic
+│   ├── core/          # Core text structures
+│   ├── model/         # Text buffer
+│   ├── languages/     # Language features
+│   └── services/      # Editor services
+├── contrib/           # Editor features (60+ contributions)
+│   ├── find/          # Find/replace
+│   ├── hover/         # Hover tooltips
+│   ├── suggest/       # IntelliSense
+│   └── ...
+└── standalone/        # Standalone Monaco build
+```
+
+## Editor Model
+
+The editor separates **model** (text content) from **view** (rendering):
+
+<Accordion title="Text Model - Content Storage">
+Located in: `src/vs/editor/common/model.ts`
+
+```typescript
+import { ITextModel } from 'vs/editor/common/model';
+import { URI } from 'vs/base/common/uri';
+
+// Text model represents the document content
+export interface ITextModel {
+	// Content access
+	getValue(): string;
+	getLineContent(lineNumber: number): string;
+	getLineCount(): number;
+
+	// Editing
+	applyEdits(operations: IIdentifiedSingleEditOperation[]): void;
+	pushEditOperations(
+		beforeSelections: Selection[],
+		operations: IIdentifiedSingleEditOperation[],
+		cursorStateComputer: ICursorStateComputer
+	): Selection[];
+
+	// Events
+	onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+	onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
+
+	// Metadata
+	getLanguageId(): string;
+	getVersionId(): number;
+	getAlternativeVersionId(): number;
+}
+
+// Create a model
+import { createTextModel } from 'vs/editor/common/model/textModel';
+
+const model = createTextModel(
+	'function hello() {\n\tconsole.log("Hello");\n}',
+	'javascript',
+	URI.file('/path/to/file.js')
+);
+
+console.log(model.getLineCount()); // 3
+console.log(model.getLineContent(2)); // '\tconsole.log("Hello");'
+```
+</Accordion>
+
+<Accordion title="Edit Operations - Text Modifications">
+```typescript
+import { Range } from 'vs/editor/common/core/range';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+
+// Define an edit operation
+const edit: IIdentifiedSingleEditOperation = {
+	range: new Range(1, 1, 1, 9), // Start and end position
+	text: 'async function', // New text
+	forceMoveMarkers: true
+};
+
+// Apply edits to model
+model.applyEdits([edit]);
+
+// Batch multiple edits
+const edits: IIdentifiedSingleEditOperation[] = [
+	{
+		range: new Range(1, 1, 1, 1),
+		text: '// TODO: '
+	},
+	{
+		range: new Range(3, 1, 3, 1),
+		text: '\t// End of function\n'
+	}
+];
+
+model.pushEditOperations([], edits, () => null);
+```
+</Accordion>
+
+### Core Structures
+
+<Tabs>
+  <Tab title="Position">
+    Located in: `src/vs/editor/common/core/position.ts`
+    ```typescript
+    import { Position } from 'vs/editor/common/core/position';
+
+    // Position in the editor (line and column)
+    const pos = new Position(5, 10); // Line 5, Column 10
+    console.log(pos.lineNumber); // 5
+    console.log(pos.column); // 10
+
+    // Compare positions
+    const earlier = new Position(1, 1);
+    const later = new Position(10, 1);
+    console.log(earlier.isBefore(later)); // true
+
+    // Create from object
+    const pos2 = Position.lift({ lineNumber: 3, column: 5 });
+    ```
+  </Tab>
+  <Tab title="Range">
+    Located in: `src/vs/editor/common/core/range.ts`
+    ```typescript
+    import { Range } from 'vs/editor/common/core/range';
+
+    // Range represents a selection or text span
+    const range = new Range(
+        1, 1,  // Start: line 1, column 1
+        5, 10  // End: line 5, column 10
+    );
+
+    // Range operations
+    console.log(range.isEmpty()); // false
+    console.log(range.containsPosition(new Position(3, 5))); // true
+
+    // Create range from positions
+    const range2 = Range.fromPositions(
+        new Position(1, 1),
+        new Position(5, 10)
+    );
+
+    // Intersect ranges
+    const intersection = range.intersectRanges(
+        new Range(2, 1, 10, 1)
+    );
+    ```
+  </Tab>
+  <Tab title="Selection">
+    Located in: `src/vs/editor/common/core/selection.ts`
+    ```typescript
+    import { Selection } from 'vs/editor/common/core/selection';
+
+    // Selection extends Range with direction
+    const selection = new Selection(
+        1, 5,   // Anchor: line 1, column 5
+        3, 10   // Active end: line 3, column 10
+    );
+
+    // Direction matters for selections
+    console.log(selection.getDirection()); // Forward or backward
+
+    // Multiple selections (multi-cursor)
+    const selections = [
+        new Selection(1, 5, 1, 10),
+        new Selection(3, 5, 3, 10),
+        new Selection(5, 5, 5, 10)
+    ];
+
+    // Collapsed selection (cursor)
+    const cursor = new Selection(5, 10, 5, 10);
+    console.log(cursor.isEmpty()); // true
+    ```
+  </Tab>
+</Tabs>
+
+## Editor View
+
+<Accordion title="Code Editor - The Main Interface">
+Located in: `src/vs/editor/browser/editorBrowser.ts`
+
+```typescript
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ITextModel } from 'vs/editor/common/model';
+
+// ICodeEditor is the main editor interface
+export interface ICodeEditor extends IEditor {
+	// Model
+	getModel(): ITextModel | null;
+	setModel(model: ITextModel | null): void;
+
+	// Selections
+	getSelection(): Selection | null;
+	getSelections(): Selection[] | null;
+	setSelection(selection: IRange): void;
+	setSelections(selections: readonly ISelection[]): void;
+
+	// View manipulation
+	revealLine(lineNumber: number): void;
+	revealRange(range: IRange): void;
+	revealRangeInCenter(range: IRange): void;
+
+	// Layout
+	layout(dimension?: IDimension): void;
+	focus(): void;
+
+	// Decorations
+	createDecorationsCollection(decorations?: IModelDeltaDecoration[]): IEditorDecorationsCollection;
+}
+```
+</Accordion>
+
+<Accordion title="Creating an Editor">
+```typescript
+import * as monaco from 'vs/editor/editor.main';
+import { IStandaloneCodeEditor } from 'vs/editor/standalone/browser/standaloneCodeEditor';
+
+// Create standalone editor
+const editor: IStandaloneCodeEditor = monaco.editor.create(container, {
+	value: 'console.log("Hello, world!");',
+	language: 'javascript',
+	theme: 'vs-dark',
+	minimap: { enabled: true },
+	lineNumbers: 'on',
+	renderWhitespace: 'selection',
+	automaticLayout: true
+});
+
+// Get model
+const model = editor.getModel();
+
+// Listen to changes
+editor.onDidChangeModelContent(e => {
+	console.log('Content changed:', e.changes);
+});
+
+// Get current value
+const code = editor.getValue();
+
+// Set cursor position
+editor.setPosition({ lineNumber: 1, column: 1 });
+
+// Execute command
+editor.trigger('source', 'editor.action.formatDocument', {});
+```
+</Accordion>
+
+### Editor Decorations
+
+Decorations add visual elements to the editor:
+
+```typescript
+import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+
+// Define decorations
+const decorations: IModelDeltaDecoration[] = [
+	{
+		range: new Range(5, 1, 5, 20),
+		options: {
+			isWholeLine: true,
+			className: 'line-error',
+			glyphMarginClassName: 'error-glyph',
+			hoverMessage: { value: 'This line has an error' },
+			overviewRuler: {
+				color: 'red',
+				position: OverviewRulerLane.Left
+			}
+		}
+	}
+];
+
+// Apply decorations
+const decorationIds = editor.createDecorationsCollection(decorations);
+
+// Update decorations
+decorationIds.set([
+	{
+		range: new Range(6, 1, 6, 20),
+		options: { /* ... */ }
+	}
+]);
+
+// Clear decorations
+decorationIds.clear();
+```
+
+## Editor Features
+
+The `contrib/` directory contains 60+ editor features:
+
+<Accordion title="Find and Replace">
+Located in: `src/vs/editor/contrib/find/`
+
+```typescript
+import { FindController } from 'vs/editor/contrib/find/browser/findController';
+
+// Programmatic find
+const findController = editor.getContribution<FindController>('editor.contrib.findController');
+
+findController?.start({
+	seedSearchStringFromSelection: true,
+	shouldFocus: FindStartFocusAction.FocusFindInput,
+	shouldAnimate: true
+});
+
+// Find next
+findController?.moveToNextMatch();
+
+// Replace
+findController?.replace();
+
+// Replace all
+findController?.replaceAll();
+```
+</Accordion>
+
+<Accordion title="IntelliSense (Suggest)">
+Located in: `src/vs/editor/contrib/suggest/`
+
+```typescript
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
+import { CompletionItemProvider } from 'vs/editor/common/languages';
+
+// Register completion provider
+monaco.languages.registerCompletionItemProvider('javascript', {
+	provideCompletionItems: (model, position) => {
+		return {
+			suggestions: [
+				{
+					label: 'console',
+					kind: monaco.languages.CompletionItemKind.Variable,
+					insertText: 'console',
+					detail: 'Console object'
+				},
+				{
+					label: 'log',
+					kind: monaco.languages.CompletionItemKind.Method,
+					insertText: 'log(${1:message})',
+					insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+					documentation: 'Outputs a message to the console'
+				}
+			]
+		};
+	}
+});
+
+// Trigger suggest programmatically
+const suggestController = editor.getContribution<SuggestController>('editor.contrib.suggestController');
+suggestController?.triggerSuggest();
+```
+</Accordion>
+
+<Accordion title="Hover Provider">
+Located in: `src/vs/editor/contrib/hover/`
+
+```typescript
+import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+
+// Register hover provider
+monaco.languages.registerHoverProvider('javascript', {
+	provideHover: (model, position) => {
+		const word = model.getWordAtPosition(position);
+		if (!word) {
+			return null;
+		}
+
+		return {
+			range: new monaco.Range(
+				position.lineNumber,
+				word.startColumn,
+				position.lineNumber,
+				word.endColumn
+			),
+			contents: [
+				{ value: `**${word.word}**` },
+				{ value: 'This is a helpful tooltip' }
+			]
+		};
+	}
+});
+```
+</Accordion>
+
+### Language Features
+
+<Tabs>
+  <Tab title="Code Actions">
+    ```typescript
+    // Register code action provider (quick fixes)
+    monaco.languages.registerCodeActionProvider('javascript', {
+        provideCodeActions: (model, range, context) => {
+            const actions: monaco.languages.CodeAction[] = [];
+
+            // Add quick fix
+            if (context.markers.length > 0) {
+                actions.push({
+                    title: 'Fix this issue',
+                    kind: 'quickfix',
+                    edit: {
+                        edits: [
+                            {
+                                resource: model.uri,
+                                versionId: model.getVersionId(),
+                                textEdit: {
+                                    range: range,
+                                    text: 'fixed code'
+                                }
+                            }
+                        ]
+                    }
+                });
+            }
+
+            return { actions, dispose: () => {} };
+        }
+    });
+    ```
+  </Tab>
+  <Tab title="Definitions">
+    ```typescript
+    // Register definition provider (Go to Definition)
+    monaco.languages.registerDefinitionProvider('javascript', {
+        provideDefinition: (model, position) => {
+            const word = model.getWordAtPosition(position);
+            if (!word) {
+                return null;
+            }
+
+            // Return definition location
+            return {
+                uri: monaco.Uri.file('/path/to/definition.js'),
+                range: new monaco.Range(10, 1, 10, 20)
+            };
+        }
+    });
+    ```
+  </Tab>
+  <Tab title="Formatting">
+    ```typescript
+    // Register document formatting provider
+    monaco.languages.registerDocumentFormattingEditProvider('javascript', {
+        provideDocumentFormattingEdits: (model, options) => {
+            const text = model.getValue();
+            const formatted = formatCode(text, options);
+
+            return [
+                {
+                    range: model.getFullModelRange(),
+                    text: formatted
+                }
+            ];
+        }
+    });
+
+    // Format document
+    await editor.getAction('editor.action.formatDocument')?.run();
+    ```
+  </Tab>
+</Tabs>
+
+## Editor Configuration
+
+<Accordion title="Editor Options">
+```typescript
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+
+const options: IEditorOptions = {
+	// Basic options
+	value: 'initial content',
+	language: 'typescript',
+	theme: 'vs-dark',
+	readOnly: false,
+
+	// Rendering options
+	lineNumbers: 'on', // 'on' | 'off' | 'relative'
+	glyphMargin: true,
+	folding: true,
+	foldingStrategy: 'auto',
+	renderWhitespace: 'selection',
+	renderLineHighlight: 'all',
+
+	// Minimap
+	minimap: {
+		enabled: true,
+		maxColumn: 120,
+		scale: 1
+	},
+
+	// Scrolling
+	scrollBeyondLastLine: true,
+	scrollbar: {
+		vertical: 'visible',
+		horizontal: 'visible',
+		useShadows: true
+	},
+
+	// Editing
+	acceptSuggestionOnEnter: 'on',
+	quickSuggestions: true,
+	tabCompletion: 'on',
+	wordWrap: 'off',
+	wrapIndent: 'same',
+
+	// Font
+	fontSize: 14,
+	fontFamily: 'Menlo, Monaco, Courier New',
+	fontWeight: 'normal',
+	lineHeight: 21,
+	letterSpacing: 0
+};
+
+// Create editor with options
+const editor = monaco.editor.create(container, options);
+
+// Update options
+editor.updateOptions({
+	readOnly: true,
+	fontSize: 16
+});
+```
+</Accordion>
+
+## View Zones and Widgets
+
+<Accordion title="View Zones - Custom Content Between Lines">
+```typescript
+import { IViewZone } from 'vs/editor/browser/editorBrowser';
+
+// Add custom content between lines
+const viewZone: IViewZone = {
+	afterLineNumber: 10,
+	heightInLines: 3,
+	domNode: (() => {
+		const div = document.createElement('div');
+		div.className = 'custom-view-zone';
+		div.textContent = 'Custom content here';
+		return div;
+	})()
+};
+
+// Add view zone
+editor.changeViewZones(accessor => {
+	const zoneId = accessor.addZone(viewZone);
+});
+```
+</Accordion>
+
+<Accordion title="Content Widgets - Floating Elements">
+```typescript
+import { IContentWidget, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+
+class MyContentWidget implements IContentWidget {
+	private readonly domNode: HTMLElement;
+
+	constructor() {
+		this.domNode = document.createElement('div');
+		this.domNode.className = 'my-content-widget';
+		this.domNode.textContent = 'Widget content';
+	}
+
+	getId(): string {
+		return 'my.content.widget';
+	}
+
+	getDomNode(): HTMLElement {
+		return this.domNode;
+	}
+
+	getPosition(): IContentWidgetPosition {
+		return {
+			position: { lineNumber: 5, column: 10 },
+			preference: [ContentWidgetPositionPreference.ABOVE]
+		};
+	}
+}
+
+// Add widget
+const widget = new MyContentWidget();
+editor.addContentWidget(widget);
+
+// Remove widget
+editor.removeContentWidget(widget);
+```
+</Accordion>
+
+## Diff Editor
+
+```typescript
+import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
+
+// Create diff editor
+const diffEditor = monaco.editor.createDiffEditor(container, {
+	enableSplitViewResizing: true,
+	renderSideBySide: true,
+	ignoreTrimWhitespace: false
+});
+
+// Set models
+const originalModel = monaco.editor.createModel(
+	'original content',
+	'javascript'
+);
+const modifiedModel = monaco.editor.createModel(
+	'modified content',
+	'javascript'
+);
+
+diffEditor.setModel({
+	original: originalModel,
+	modified: modifiedModel
+});
+
+// Navigate changes
+diffEditor.getAction('editor.action.diffReview.next')?.run();
+```
+
+## Key Takeaways
+
+<Note>
+- The editor separates **model** (content) from **view** (rendering)
+- Core structures: `Position`, `Range`, `Selection` represent locations in text
+- Decorations add visual elements without modifying the model
+- 60+ contrib features provide rich editing capabilities
+- Language features are registered via provider APIs
+- The editor is highly configurable through `IEditorOptions`
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Workbench Layer" icon="window-maximize" href="/architecture/workbench-layer">
+    Explore the application workbench structure
+  </Card>
+  <Card title="Platform Layer" icon="cubes" href="/architecture/platform-layer">
+    Review platform services
+  </Card>
+</CardGroup>

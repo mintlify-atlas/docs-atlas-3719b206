@@ -1,0 +1,373 @@
+---
+title: Building from Source
+description: Complete guide to building Visual Studio Code from source code
+---
+
+## Prerequisites
+
+Before building VS Code from source, ensure you have the following installed:
+
+<CardGroup cols={2}>
+  <Card title="Node.js" icon="node">
+    Required for running build scripts and dependencies
+  </Card>
+  <Card title="Git" icon="code-branch">
+    For cloning the repository and version control
+  </Card>
+  <Card title="Python" icon="python">
+    Required for building native modules
+  </Card>
+  <Card title="C++ Compiler" icon="code">
+    Platform-specific compiler for native dependencies
+  </Card>
+</CardGroup>
+
+<Note>
+  **Development Container Available**: VS Code includes a Dev Container configuration that provides a pre-configured environment with all prerequisites. Docker needs at least **4 Cores and 8 GB of RAM** (9 GB recommended).
+</Note>
+
+## System Requirements
+
+<Tabs>
+  <Tab title="macOS">
+    - **Xcode Command Line Tools**: Install with `xcode-select --install`
+    - **Node.js**: Version specified in `.nvmrc`
+    - **Python**: Version 3.x
+    - **Minimum RAM**: 8 GB (16 GB recommended)
+  </Tab>
+  <Tab title="Linux">
+    - **Build essentials**: `build-essential`, `g++`, `make`
+    - **Node.js**: Version specified in `.nvmrc`
+    - **Python**: Version 3.x
+    - **libx11-dev**: For X11 development
+    - **libxkbfile-dev**: For keyboard file handling
+    - **libsecret-1-dev**: For credential storage
+    - **Minimum RAM**: 8 GB (16 GB recommended)
+  </Tab>
+  <Tab title="Windows">
+    - **Visual Studio**: 2019 or later with C++ workload
+    - **Node.js**: Version specified in `.nvmrc`
+    - **Python**: Version 3.x
+    - **Windows SDK**: Latest version
+    - **Minimum RAM**: 8 GB (16 GB recommended)
+  </Tab>
+</Tabs>
+
+## Getting the Source Code
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone the VS Code repository from GitHub:
+
+    ```bash
+    git clone https://github.com/microsoft/vscode.git
+    cd vscode
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    Install all npm dependencies. The `postinstall` script will automatically run after installation:
+
+    ```bash
+    npm install
+    ```
+
+    <Note>
+      The postinstall script (`build/npm/postinstall.ts`) handles additional setup tasks automatically.
+    </Note>
+  </Step>
+
+  <Step title="Download Electron">
+    Download the Electron binary (unless skipped via environment variable):
+
+    ```bash
+    npm run electron
+    ```
+
+    This command runs `node build/lib/electron.ts` to download the correct Electron version.
+  </Step>
+</Steps>
+
+## Building VS Code
+
+### Full Compilation
+
+Compile all TypeScript sources using Gulp:
+
+```bash
+npm run compile
+```
+
+This internally runs:
+```bash
+node --max-old-space-size=8192 ./node_modules/gulp/bin/gulp.js compile
+```
+
+<Warning>
+  The build process allocates up to 8 GB of heap space for Node.js. Ensure you have sufficient RAM available.
+</Warning>
+
+### Building Specific Components
+
+<CodeGroup>
+```bash Web Version
+npm run compile-web
+```
+
+```bash CLI
+npm run compile-cli
+```
+
+```bash Build Scripts
+npm run compile-build
+```
+
+```bash Extensions
+npm run compile-extensions-build
+```
+</CodeGroup>
+
+## Running from Source
+
+<Tabs>
+  <Tab title="macOS/Linux">
+    Launch VS Code from source:
+
+    ```bash
+    ./scripts/code.sh
+    ```
+
+    The script will:
+    1. Run the preLaunch task (if `VSCODE_SKIP_PRELAUNCH` is not set)
+    2. Set development environment variables
+    3. Launch Electron with VS Code
+
+    Environment variables set:
+    - `NODE_ENV=development`
+    - `VSCODE_DEV=1`
+    - `VSCODE_CLI=1`
+    - `ELECTRON_ENABLE_STACK_DUMPING=1`
+    - `ELECTRON_ENABLE_LOGGING=1`
+  </Tab>
+  <Tab title="Windows">
+    Launch VS Code from source:
+
+    ```bash
+    .\scripts\code.bat
+    ```
+
+    The batch file performs the same setup as the shell script but for Windows environments.
+  </Tab>
+</Tabs>
+
+### Running Web Version
+
+Launch VS Code in a browser:
+
+<CodeGroup>
+```bash Server Mode
+./scripts/code-server.sh
+```
+
+```bash Web Mode
+./scripts/code-web.sh
+```
+</CodeGroup>
+
+<Note>
+  The web version runs on `http://localhost:8080` by default.
+</Note>
+
+## Build Optimization
+
+### Watch Mode for Development
+
+For active development, use watch mode to automatically recompile on file changes:
+
+```bash
+npm run watch
+```
+
+This runs three parallel watch tasks:
+- `watch-client-transpile`: Transpiles client TypeScript
+- `watch-client`: Watches client code
+- `watch-extensions`: Watches extension code
+
+### Individual Watch Tasks
+
+<CodeGroup>
+```bash Client Only
+npm run watch-client
+```
+
+```bash Extensions Only
+npm run watch-extensions
+```
+
+```bash Web
+npm run watch-web
+```
+
+```bash CLI
+npm run watch-cli
+```
+</CodeGroup>
+
+### Using Deemon for Process Management
+
+Deemon provides daemon-style process management for watch tasks:
+
+<CodeGroup>
+```bash Start Watch Daemon
+npm run watchd
+```
+
+```bash Kill Watch Daemon
+npm run kill-watchd
+```
+
+```bash Restart Watch Daemon
+npm run restart-watchd
+```
+</CodeGroup>
+
+## Production Builds
+
+For production-ready builds:
+
+<Steps>
+  <Step title="Minify VS Code">
+    ```bash
+    npm run minify-vscode
+    ```
+  </Step>
+
+  <Step title="Minify Remote Extension Host">
+    ```bash
+    npm run minify-vscode-reh
+    ```
+  </Step>
+
+  <Step title="Minify Remote Extension Host Web">
+    ```bash
+    npm run minify-vscode-reh-web
+    ```
+  </Step>
+</Steps>
+
+## Using Development Containers
+
+### Local Development Container
+
+<Steps>
+  <Step title="Install Prerequisites">
+    - Docker Desktop (macOS/Windows) or Docker (Linux)
+    - VS Code with Dev Containers extension
+  </Step>
+
+  <Step title="Clone in Container">
+    Press `Ctrl/Cmd + Shift + P` and select:
+    ```
+    Dev Containers: Clone Repository in Container Volume...
+    ```
+    Enter: `https://github.com/microsoft/vscode`
+  </Step>
+
+  <Step title="Build and Run">
+    After the container starts:
+    ```bash
+    npm i
+    bash scripts/code.sh
+    ```
+  </Step>
+</Steps>
+
+### GitHub Codespaces
+
+<Steps>
+  <Step title="Create Codespace">
+    From the GitHub repository, click **Code** → **Open with Codespaces** → **New codespace**
+  </Step>
+
+  <Step title="Select Machine Size">
+    Choose **Standard** machine (4-core, 8GB RAM)
+  </Step>
+
+  <Step title="Access Desktop">
+    The codespace provides a VNC-based desktop environment:
+    - **VNC Port**: 5901
+    - **Web Client**: Port 6080 (http://localhost:6080)
+    - **Password**: `vscode`
+  </Step>
+</Steps>
+
+<Tip>
+  The development container uses Fluxbox window manager. Right-click on the desktop to see menu options.
+</Tip>
+
+## Troubleshooting
+
+### Build Failures
+
+<AccordionGroup>
+  <Accordion title="Out of Memory Errors">
+    Increase Node.js heap size:
+    ```bash
+    export NODE_OPTIONS="--max-old-space-size=8192"
+    ```
+  </Accordion>
+
+  <Accordion title="Native Module Compilation Fails">
+    Ensure you have the correct C++ compiler:
+    - **macOS**: Install Xcode Command Line Tools
+    - **Linux**: Install `build-essential`
+    - **Windows**: Install Visual Studio with C++ workload
+  </Accordion>
+
+  <Accordion title="Electron Download Issues">
+    Set the Electron mirror if you're behind a firewall:
+    ```bash
+    export ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
+    ```
+  </Accordion>
+
+  <Accordion title="Slow Builds on macOS/Windows">
+    Use WSL on Windows or the Dev Container approach for better I/O performance:
+    ```bash
+    # Use container volume instead of local filesystem
+    Dev Containers: Clone Repository in Container Volume...
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Clean Build
+
+If you encounter persistent issues, perform a clean build:
+
+```bash
+# Remove node_modules and compiled output
+rm -rf node_modules out
+
+# Reinstall dependencies
+npm install
+
+# Rebuild
+npm run compile
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Development Workflow" icon="code" href="/development/development-workflow">
+    Learn about the development workflow and tools
+  </Card>
+  <Card title="Debugging" icon="bug" href="/development/debugging">
+    Set up debugging for VS Code development
+  </Card>
+  <Card title="Running Tests" icon="flask" href="/development/running-tests">
+    Learn how to run and write tests
+  </Card>
+  <Card title="Contributing" icon="code-pull-request" href="https://github.com/microsoft/vscode/wiki/How-to-Contribute">
+    Read the contribution guidelines
+  </Card>
+</CardGroup>

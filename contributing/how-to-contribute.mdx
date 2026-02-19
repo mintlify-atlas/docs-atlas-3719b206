@@ -1,0 +1,259 @@
+---
+title: 'How to Contribute'
+description: 'Learn how to contribute to Visual Studio Code through code, documentation, and community support'
+---
+
+## Welcome Contributors
+
+Thank you for your interest in contributing to VS Code! There are several ways you can contribute, beyond writing code. This guide provides a comprehensive overview of how you can get involved in the VS Code open source project.
+
+## Ways to Contribute
+
+<CardGroup cols={2}>
+  <Card title="Report Issues" icon="bug" href="#reporting-issues">
+    Help us identify and fix bugs in VS Code
+  </Card>
+  <Card title="Submit Code" icon="code" href="#contributing-fixes">
+    Fix issues and add new features
+  </Card>
+  <Card title="Improve Docs" icon="book" href="#documentation">
+    Help improve our documentation
+  </Card>
+  <Card title="Answer Questions" icon="comments" href="#asking-questions">
+    Support the community on Stack Overflow
+  </Card>
+</CardGroup>
+
+## Asking Questions
+
+Have a question about VS Code? We encourage you to ask on [Stack Overflow](https://stackoverflow.com/questions/tagged/visual-studio-code) using the tag `visual-studio-code`.
+
+<Note>
+The active VS Code community on Stack Overflow will be eager to assist you. Your well-worded question will serve as a resource to others searching for help.
+</Note>
+
+<Tip>
+Instead of opening an issue for questions, Stack Overflow is the preferred channel as it:
+- Reaches a broader community of developers
+- Provides searchable answers for future users
+- Keeps the issue tracker focused on bugs and feature requests
+</Tip>
+
+## Providing Feedback
+
+Your comments and feedback are welcome! The development team is available via several channels:
+
+<Steps>
+  <Step title="Stack Overflow">
+    Ask questions using the `visual-studio-code` tag
+  </Step>
+  <Step title="GitHub Discussions">
+    Connect with extension authors and discuss ideas
+  </Step>
+  <Step title="Social Media">
+    Follow [@code](https://x.com/code) on Twitter for updates
+  </Step>
+  <Step title="Slack Community">
+    Join the [VS Code Dev Community](https://aka.ms/vscode-dev-community)
+  </Step>
+</Steps>
+
+For more details, see the [Feedback Channels](https://github.com/microsoft/vscode/wiki/Feedback-Channels) wiki page.
+
+## Reporting Issues
+
+Have you identified a reproducible problem in VS Code? Do you have a feature request? Here's how to report your issue effectively.
+
+### Identify Where to Report
+
+The VS Code project is distributed across multiple repositories. Try to file the issue against the correct repository:
+
+<Accordion title="Determine the Correct Repository">
+  <Steps>
+    <Step title="Disable Extensions">
+      Can you recreate the issue after [disabling all extensions](https://code.visualstudio.com/docs/editor/extension-gallery#_disable-an-extension)? If the issue is caused by an extension, file the issue on that extension's repository.
+    </Step>
+    <Step title="Check Related Projects">
+      Review the [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) list to find the appropriate repository for your issue.
+    </Step>
+    <Step title="Core VS Code Issues">
+      If it's a core editor issue, file it in the main [vscode repository](https://github.com/microsoft/vscode/issues).
+    </Step>
+  </Steps>
+</Accordion>
+
+### Look For an Existing Issue
+
+Before creating a new issue, search [open issues](https://github.com/microsoft/vscode/issues) to see if the issue or feature request already exists.
+
+<Tip>
+Be sure to scan through the [most popular feature requests](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc) as well.
+</Tip>
+
+If you find an existing issue:
+- Make relevant comments
+- Add your reaction using GitHub's reaction feature:
+  - 👍 upvote
+  - 👎 downvote
+
+<Warning>
+Use reactions instead of "+1" comments. This keeps the issue thread focused and makes it easier to gauge community interest.
+</Warning>
+
+### Writing Good Bug Reports
+
+The built-in tool for reporting issues (accessible via **Help > Report Issue**) can help streamline this process by automatically providing:
+- Your VS Code version
+- All installed extensions
+- System information
+- Search results for similar existing issues
+
+<Accordion title="Essential Information to Include">
+  Every issue should include:
+
+  - **Version of VS Code**: Include the exact version number
+  - **Operating system**: Windows, macOS, or Linux with version
+  - **List of extensions**: All installed extensions and their versions
+  - **Reproducible steps**: Clear numbered steps (1... 2... 3...) that cause the issue
+  - **Expected vs actual behavior**: What you expected to see versus what actually happened
+  - **Visual evidence**: Images, animations, or video showing the issue
+  - **Code snippet**: Demonstrate the issue with code (must be copy-pasteable, not just a screenshot)
+  - **Dev Tools Console errors**: Open via **Help > Toggle Developer Tools**
+</Accordion>
+
+### Writing Good Feature Requests
+
+When requesting a new feature:
+
+<Steps>
+  <Step title="Single Request Per Issue">
+    File a single issue per feature request. Don't enumerate multiple requests in one issue.
+  </Step>
+  <Step title="Provide Context">
+    Explain the problem you're trying to solve and why existing features don't address it.
+  </Step>
+  <Step title="Describe the Solution">
+    Clearly describe how you envision the feature working.
+  </Step>
+  <Step title="Include Use Cases">
+    Provide real-world scenarios where this feature would be beneficial.
+  </Step>
+</Steps>
+
+### Final Checklist
+
+Before submitting your issue:
+
+- [ ] Search the issue repository to ensure your report is new
+- [ ] Recreate the issue after disabling all extensions
+- [ ] Simplify your code around the issue to better isolate the problem
+
+<Note>
+Don't feel bad if the developers can't reproduce the issue right away. They will simply ask for more information!
+</Note>
+
+### Follow Your Issue
+
+Once submitted, your report will go into the [issue tracking workflow](https://github.com/microsoft/vscode/wiki/Issue-Tracking). Understanding this workflow helps you know what to expect and how to continue assisting throughout the process.
+
+## Automated Issue Management
+
+VS Code uses GitHub Actions to manage issues efficiently. These actions:
+
+- Automatically close issues marked `info-needed` if there's no response in 7 days
+- Automatically lock issues 45 days after they are closed
+- Implement the [feature request pipeline](https://github.com/microsoft/vscode/wiki/Issues-Triaging#managing-feature-requests)
+
+<Tip>
+If you believe the bot made a mistake, open a new issue and let the team know.
+</Tip>
+
+## Contributing Fixes
+
+Interested in writing code to fix issues? Follow these resources:
+
+<CardGroup cols={2}>
+  <Card title="Coding Guidelines" icon="code" href="/contributing/coding-guidelines">
+    Learn VS Code's coding standards
+  </Card>
+  <Card title="Pull Request Process" icon="git-pull-request" href="/contributing/pull-requests">
+    Understand the PR workflow
+  </Card>
+</CardGroup>
+
+### Getting Started
+
+<Steps>
+  <Step title="Find an Issue">
+    Look for issues labeled `good-first-issue` or `help-wanted` in the [VS Code repository](https://github.com/microsoft/vscode/issues).
+  </Step>
+  <Step title="Set Up Development Environment">
+    Follow the [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute) guide to build and run VS Code from source.
+  </Step>
+  <Step title="Make Your Changes">
+    Implement your fix following the [coding guidelines](/contributing/coding-guidelines).
+  </Step>
+  <Step title="Test Thoroughly">
+    Run existing tests and add new ones for your changes.
+  </Step>
+  <Step title="Submit a Pull Request">
+    Follow the [pull request guidelines](/contributing/pull-requests) to submit your changes.
+  </Step>
+</Steps>
+
+## Documentation
+
+Documentation improvements are always welcome! You can contribute to:
+
+- **Code documentation**: Improve JSDoc comments in the codebase
+- **User documentation**: Submit pull requests to [vscode-docs](https://github.com/microsoft/vscode-docs)
+- **Wiki pages**: Help maintain the [VS Code wiki](https://github.com/microsoft/vscode/wiki)
+
+## Contributing to Translations
+
+Help make VS Code accessible to users worldwide by contributing translations. Visit the [VS Code Localization](https://aka.ms/vscodeloc) project to get started.
+
+## Development Container
+
+VS Code includes a development container for easy setup:
+
+<Tabs>
+  <Tab title="Dev Containers">
+    Use the **Dev Containers: Clone Repository in Container Volume...** command to create a Docker volume for better disk I/O.
+    
+    <Note>
+    Docker container should have at least **4 Cores and 6 GB of RAM (8 GB recommended)** to run a full build.
+    </Note>
+  </Tab>
+  <Tab title="GitHub Codespaces">
+    Install the [GitHub Codespaces](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces) extension and use **Codespaces: Create New Codespace**.
+  </Tab>
+</Tabs>
+
+## Code of Conduct
+
+<Warning>
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). All contributors are expected to abide by these guidelines.
+</Warning>
+
+For more information:
+- Review the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/)
+- Contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with questions
+
+## Thank You
+
+Your contributions to open source, large or small, make great projects like VS Code possible. Thank you for taking the time to contribute!
+
+## Additional Resources
+
+<CardGroup cols={3}>
+  <Card title="Wiki" icon="book" href="https://github.com/microsoft/vscode/wiki">
+    Comprehensive documentation
+  </Card>
+  <Card title="Roadmap" icon="map" href="https://github.com/microsoft/vscode/wiki/Roadmap">
+    Future plans and direction
+  </Card>
+  <Card title="Related Projects" icon="diagram-project" href="https://github.com/microsoft/vscode/wiki/Related-Projects">
+    VS Code ecosystem
+  </Card>
+</CardGroup>

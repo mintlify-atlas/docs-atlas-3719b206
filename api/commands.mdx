@@ -1,0 +1,464 @@
+---
+title: 'Commands API'
+description: 'Register and execute commands in Visual Studio Code'
+---
+
+# Commands API
+
+The Commands API allows you to register and execute commands in VS Code. Commands are functions with unique identifiers that can be invoked from the Command Palette, keyboard shortcuts, menus, or programmatically.
+
+## Namespace
+
+```typescript
+vscode.commands
+```
+
+All command-related functionality is available through the `commands` namespace.
+
+## Core Functions
+
+### registerCommand
+
+Register a command that can be invoked via keyboard shortcuts, menu items, or directly.
+
+```typescript
+function registerCommand(
+    command: string,
+    callback: (...args: any[]) => any,
+    thisArg?: any
+): Disposable
+```
+
+<ParamField path="command" type="string" required>
+  A unique identifier for the command
+</ParamField>
+
+<ParamField path="callback" type="function" required>
+  The command handler function that will be executed
+</ParamField>
+
+<ParamField path="thisArg" type="any">
+  The `this` context used when invoking the handler
+</ParamField>
+
+<ResponseField name="return" type="Disposable">
+  Disposable that unregisters the command when disposed
+</ResponseField>
+
+#### Example
+
+```typescript
+import * as vscode from 'vscode';
+
+export function activate(context: vscode.ExtensionContext) {
+    // Register a simple command
+    let disposable = vscode.commands.registerCommand('extension.sayHello', () => {
+        vscode.window.showInformationMessage('Hello World!');
+    });
+    
+    context.subscriptions.push(disposable);
+    
+    // Register command with arguments
+    let greetCommand = vscode.commands.registerCommand(
+        'extension.greet',
+        (name: string) => {
+            vscode.window.showInformationMessage(`Hello, ${name}!`);
+        }
+    );
+    
+    context.subscriptions.push(greetCommand);
+}
+```
+
+<Note>
+Registering a command with an existing identifier will cause an error. Ensure your command IDs are unique.
+</Note>
+
+### registerTextEditorCommand
+
+Register a text editor command that executes only when an active editor is present.
+
+```typescript
+function registerTextEditorCommand(
+    command: string,
+    callback: (textEditor: TextEditor, edit: TextEditorEdit, ...args: any[]) => void,
+    thisArg?: any
+): Disposable
+```
+
+<ParamField path="command" type="string" required>
+  Unique identifier for the command
+</ParamField>
+
+<ParamField path="callback" type="function" required>
+  Handler with access to the active TextEditor and TextEditorEdit builder
+</ParamField>
+
+<ParamField path="thisArg" type="any">
+  The `this` context for the handler
+</ParamField>
+
+#### Example
+
+```typescript
+const command = vscode.commands.registerTextEditorCommand(
+    'extension.transformText',
+    (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit) => {
+        const document = textEditor.document;
+        const selection = textEditor.selection;
+        
+        // Get selected text
+        const text = document.getText(selection);
+        
+        // Transform and replace
+        edit.replace(selection, text.toUpperCase());
+    }
+);
+
+context.subscriptions.push(command);
+```
+
+<Note>
+The `edit` builder is only valid during callback execution. Changes are applied atomically when the callback completes.
+</Note>
+
+### executeCommand
+
+Execute a command programmatically.
+
+```typescript
+function executeCommand<T = unknown>(
+    command: string,
+    ...rest: any[]
+): Thenable<T>
+```
+
+<ParamField path="command" type="string" required>
+  Identifier of the command to execute
+</ParamField>
+
+<ParamField path="rest" type="any[]">
+  Parameters passed to the command handler
+</ParamField>
+
+<ResponseField name="return" type="Thenable<T>">
+  A thenable that resolves to the command's return value
+</ResponseField>
+
+#### Example
+
+```typescript
+// Execute a built-in command
+await vscode.commands.executeCommand('workbench.action.files.save');
+
+// Execute your own command with arguments
+const result = await vscode.commands.executeCommand(
+    'extension.calculate',
+    10,
+    20
+);
+console.log('Result:', result);
+
+// Open a file
+await vscode.commands.executeCommand(
+    'vscode.open',
+    vscode.Uri.file('/path/to/file.txt')
+);
+```
+
+<Tabs>
+  <Tab title="Primitive Types">
+    ```typescript
+    // Only primitive types are allowed for built-in commands
+    await vscode.commands.executeCommand(
+        'editor.action.insertSnippet',
+        { snippet: 'console.log($1);' }
+    );
+    ```
+  </Tab>
+  <Tab title="VS Code Types">
+    ```typescript
+    // Position, Range, Uri, and Location are also allowed
+    await vscode.commands.executeCommand(
+        'editor.action.goToLocations',
+        document.uri,
+        new vscode.Position(10, 5),
+        locations
+    );
+    ```
+  </Tab>
+</Tabs>
+
+### getCommands
+
+Retrieve the list of all available commands.
+
+```typescript
+function getCommands(filterInternal?: boolean): Thenable<string[]>
+```
+
+<ParamField path="filterInternal" type="boolean" default="false">
+  Set to `true` to exclude internal commands (those starting with underscore)
+</ParamField>
+
+<ResponseField name="return" type="Thenable<string[]>">
+  List of command identifiers
+</ResponseField>
+
+#### Example
+
+```typescript
+// Get all commands including internal
+const allCommands = await vscode.commands.getCommands();
+console.log(`Total commands: ${allCommands.length}`);
+
+// Get only public commands
+const publicCommands = await vscode.commands.getCommands(true);
+const extensionCommands = publicCommands.filter(cmd => 
+    cmd.startsWith('extension.')
+);
+console.log('Extension commands:', extensionCommands);
+```
+
+## Command Interface
+
+Commands are referenced using the `Command` interface:
+
+```typescript
+interface Command {
+    title: string;
+    command: string;
+    tooltip?: string;
+    arguments?: any[];
+}
+```
+
+<ParamField path="title" type="string" required>
+  Human-readable title displayed in the UI
+</ParamField>
+
+<ParamField path="command" type="string" required>
+  The identifier of the command handler
+</ParamField>
+
+<ParamField path="tooltip" type="string">
+  Optional tooltip shown when hovering over the command
+</ParamField>
+
+<ParamField path="arguments" type="any[]">
+  Arguments passed to the command handler when invoked
+</ParamField>
+
+### Usage Example
+
+```typescript
+// In a CodeLens
+const codeLens = new vscode.CodeLens(range, {
+    title: 'Run Test',
+    command: 'extension.runTest',
+    arguments: [testId, testFile]
+});
+
+// In a tree item
+const treeItem = new vscode.TreeItem('Item');
+treeItem.command = {
+    title: 'Open File',
+    command: 'vscode.open',
+    arguments: [uri]
+};
+```
+
+## Package.json Contributions
+
+Declare commands in your `package.json` to make them available in the Command Palette:
+
+```json package.json
+{
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.helloWorld",
+        "title": "Hello World",
+        "category": "My Extension",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "extension.openSettings",
+        "title": "Open Settings",
+        "category": "My Extension",
+        "enablement": "workspaceFolderCount > 0"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "extension.helloWorld",
+        "key": "ctrl+shift+h",
+        "mac": "cmd+shift+h",
+        "when": "editorTextFocus"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "extension.transform",
+          "when": "editorHasSelection",
+          "group": "1_modification"
+        }
+      ]
+    }
+  }
+}
+```
+
+## Built-in Commands
+
+VS Code provides many built-in commands you can execute:
+
+<CodeGroup>
+```typescript Editor
+// Save the active file
+await vscode.commands.executeCommand('workbench.action.files.save');
+
+// Format document
+await vscode.commands.executeCommand('editor.action.formatDocument');
+
+// Toggle sidebar
+await vscode.commands.executeCommand('workbench.action.toggleSidebarVisibility');
+```
+
+```typescript File Operations
+// Open a file
+await vscode.commands.executeCommand(
+    'vscode.open',
+    vscode.Uri.file('/path/to/file')
+);
+
+// Reveal file in explorer
+await vscode.commands.executeCommand(
+    'revealFileInOS',
+    vscode.Uri.file('/path/to/file')
+);
+```
+
+```typescript Git
+// Open Git source control
+await vscode.commands.executeCommand('workbench.view.scm');
+
+// Commit changes
+await vscode.commands.executeCommand('git.commit');
+```
+</CodeGroup>
+
+## Advanced Patterns
+
+### Conditional Command Registration
+
+```typescript
+if (someCondition) {
+    const disposable = vscode.commands.registerCommand(
+        'extension.conditionalCommand',
+        () => {
+            // Command implementation
+        }
+    );
+    context.subscriptions.push(disposable);
+}
+```
+
+### Command Chaining
+
+```typescript
+vscode.commands.registerCommand('extension.workflow', async () => {
+    // Execute multiple commands in sequence
+    await vscode.commands.executeCommand('workbench.action.files.save');
+    await vscode.commands.executeCommand('editor.action.formatDocument');
+    await vscode.commands.executeCommand('workbench.action.files.saveAll');
+    
+    vscode.window.showInformationMessage('Workflow completed!');
+});
+```
+
+### Error Handling
+
+```typescript
+vscode.commands.registerCommand('extension.safeCommand', async () => {
+    try {
+        const result = await vscode.commands.executeCommand('some.command');
+        return result;
+    } catch (error) {
+        vscode.window.showErrorMessage(`Command failed: ${error.message}`);
+        return null;
+    }
+});
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Command Naming">
+    - Use a consistent prefix (e.g., `myExtension.commandName`)
+    - Choose descriptive, action-oriented names
+    - Avoid generic names that might conflict
+    - Document all public commands
+  </Accordion>
+  
+  <Accordion title="Performance">
+    - Keep command handlers lightweight
+    - Use async/await for long-running operations
+    - Show progress indicators for slow operations
+    - Don't block the UI thread
+  </Accordion>
+  
+  <Accordion title="User Experience">
+    - Provide clear feedback when commands execute
+    - Handle errors gracefully with user-friendly messages
+    - Support undo/redo when modifying text
+    - Use appropriate keyboard shortcuts
+  </Accordion>
+</AccordionGroup>
+
+## Common Use Cases
+
+### Transform Selected Text
+
+```typescript
+vscode.commands.registerTextEditorCommand(
+    'extension.uppercase',
+    (editor, edit) => {
+        const selections = editor.selections;
+        
+        for (const selection of selections) {
+            const text = editor.document.getText(selection);
+            edit.replace(selection, text.toUpperCase());
+        }
+    }
+);
+```
+
+### Open External URL
+
+```typescript
+vscode.commands.registerCommand('extension.openDocs', () => {
+    vscode.env.openExternal(
+        vscode.Uri.parse('https://example.com/docs')
+    );
+});
+```
+
+### Create New File with Content
+
+```typescript
+vscode.commands.registerCommand('extension.newTemplate', async () => {
+    const doc = await vscode.workspace.openTextDocument({
+        content: '// Template\n',
+        language: 'javascript'
+    });
+    await vscode.window.showTextDocument(doc);
+});
+```
+
+## Related APIs
+
+- **[Text Editor API](/api/text-editor)** - Manipulate text in editors
+- **[Window API](/api/text-editor)** - Show notifications and dialogs
+- **[Workspace API](/api/workspace)** - Access workspace resources

@@ -1,0 +1,911 @@
+---
+title: CLI Configuration
+description: Configure the Visual Studio Code CLI for your development workflow
+---
+
+The VS Code CLI can be customized through command-line options, environment variables, and persistent configuration. This guide covers all available configuration options to optimize your CLI experience.
+
+## Configuration Overview
+
+The CLI can be configured at multiple levels:
+
+1. **Command-line options** - Override settings per command
+2. **Environment variables** - Set persistent defaults
+3. **Configuration files** - Store preferences and credentials
+4. **System integration** - Shell aliases and path configuration
+
+## CLI Data Directory
+
+The CLI stores its configuration, logs, and cache in a data directory.
+
+### Default Locations
+
+<Tabs>
+  <Tab title="Linux">
+    ```bash
+    ~/.vscode-oss/cli/
+    ```
+    
+    For official VS Code builds:
+    ```bash
+    ~/.vscode/cli/
+    ```
+  </Tab>
+  
+  <Tab title="macOS">
+    ```bash
+    ~/.vscode-oss/cli/
+    ```
+    
+    For official VS Code builds:
+    ```bash
+    ~/.vscode/cli/
+    ```
+  </Tab>
+  
+  <Tab title="Windows">
+    ```powershell
+    %APPDATA%\Code OSS\cli\
+    ```
+    
+    For official VS Code builds:
+    ```powershell
+    %APPDATA%\Code\cli\
+    ```
+  </Tab>
+</Tabs>
+
+### Custom Data Directory
+
+Override the default location:
+
+<CodeGroup>
+```bash Via command line
+code --cli-data-dir ~/.my-vscode-cli tunnel
+```
+
+```bash Via environment variable
+export VSCODE_CLI_DATA_DIR="$HOME/.my-vscode-cli"
+code tunnel
+```
+
+```bash Permanent (add to shell profile)
+echo 'export VSCODE_CLI_DATA_DIR="$HOME/.my-vscode-cli"' >> ~/.bashrc
+```
+</CodeGroup>
+
+### Data Directory Structure
+
+```
+~/.vscode-oss/cli/
+├── servers/          # Tunnel server installations
+├── logs/             # CLI operation logs
+├── serve-web-key-half  # Web server encryption key
+├── serve-web-token    # Web server connection token
+├── tunnel.lock       # Tunnel process lock file
+└── forwarding.lock   # Port forwarding lock file
+```
+
+## Environment Variables
+
+The CLI respects several environment variables for configuration.
+
+### Core Configuration
+
+<ParamField path="VSCODE_CLI_DATA_DIR" type="string">
+  Override the CLI data directory location.
+  
+  ```bash
+  export VSCODE_CLI_DATA_DIR="/custom/path/cli"
+  ```
+</ParamField>
+
+<ParamField path="VSCODE_CLI_NONINTERACTIVE" type="string">
+  Disable interactive prompts (useful for scripts).
+  
+  ```bash
+  export VSCODE_CLI_NONINTERACTIVE=1
+  code tunnel --accept-server-license-terms
+  ```
+</ParamField>
+
+<ParamField path="NO_COLOR" type="string">
+  Disable colored terminal output.
+  
+  ```bash
+  export NO_COLOR=1
+  ```
+</ParamField>
+
+### Authentication
+
+<ParamField path="VSCODE_CLI_ACCESS_TOKEN" type="string">
+  Provide an access token for tunnel authentication.
+  
+  ```bash
+  export VSCODE_CLI_ACCESS_TOKEN="ghp_xxxxxxxxxxxxx"
+  code tunnel user login --provider github
+  ```
+</ParamField>
+
+<ParamField path="VSCODE_CLI_REFRESH_TOKEN" type="string">
+  Provide a refresh token for tunnel authentication.
+  
+  ```bash
+  export VSCODE_CLI_REFRESH_TOKEN="your_refresh_token"
+  ```
+</ParamField>
+
+### Tunnel Configuration
+
+<ParamField path="VSCODE_CLI_REQUIRE_TOKEN" type="string">
+  Require a specific token for command shell connections.
+  
+  ```bash
+  export VSCODE_CLI_REQUIRE_TOKEN="my-secret-token"
+  ```
+</ParamField>
+
+<ParamField path="TUNNEL_SERVICE_USER_AGENT" type="string">
+  Custom user agent string for tunnel service requests.
+  
+  ```bash
+  export TUNNEL_SERVICE_USER_AGENT="MyApp/1.0"
+  ```
+</ParamField>
+
+## Logging Configuration
+
+### Log Levels
+
+Control the verbosity of CLI output:
+
+<CodeGroup>
+```bash Critical only
+code --log critical tunnel
+```
+
+```bash Errors and critical
+code --log error tunnel
+```
+
+```bash Warnings and above (recommended)
+code --log warn tunnel
+```
+
+```bash Info and above (default)
+code --log info tunnel
+```
+
+```bash Debug output
+code --log debug tunnel
+```
+
+```bash Trace everything
+code --log trace tunnel
+```
+
+```bash Verbose mode (trace + wait)
+code --verbose tunnel
+```
+</CodeGroup>
+
+### Log to File
+
+Persist logs to a file for later analysis:
+
+```bash
+code --log-to-file /var/log/vscode-tunnel.log tunnel
+```
+
+<Note>
+Ensure the user has write permissions to the log file location.
+</Note>
+
+### Viewing Logs
+
+<Tabs>
+  <Tab title="Real-time">
+    ```bash
+    # Follow logs in real-time
+    tail -f /var/log/vscode-tunnel.log
+    ```
+  </Tab>
+  
+  <Tab title="Service logs">
+    ```bash
+    # View tunnel service logs
+    code tunnel service log
+    ```
+  </Tab>
+  
+  <Tab title="System logs">
+    <Tabs>
+      <Tab title="Linux (systemd)">
+        ```bash
+        journalctl -u code-tunnel -f
+        ```
+      </Tab>
+      
+      <Tab title="macOS">
+        ```bash
+        tail -f ~/Library/Logs/code-tunnel.log
+        ```
+      </Tab>
+      
+      <Tab title="Windows">
+        ```powershell
+        Get-EventLog -LogName Application -Source "VS Code Tunnel"
+        ```
+      </Tab>
+    </Tabs>
+  </Tab>
+</Tabs>
+
+## Editor Configuration
+
+### Multiple VS Code Instances
+
+Run separate VS Code instances with different configurations:
+
+```bash
+# Personal profile
+code --user-data-dir ~/.vscode-personal \
+     --extensions-dir ~/.vscode-personal-ext
+
+# Work profile  
+code --user-data-dir ~/.vscode-work \
+     --extensions-dir ~/.vscode-work-ext
+
+# Testing profile
+code --user-data-dir ~/.vscode-test \
+     --extensions-dir ~/.vscode-test-ext
+```
+
+<Accordion title="Create Profile Aliases">
+  Add to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.):
+  
+  ```bash
+  # Personal VS Code
+  alias code-personal='code --user-data-dir ~/.vscode-personal --extensions-dir ~/.vscode-personal-ext'
+  
+  # Work VS Code
+  alias code-work='code --user-data-dir ~/.vscode-work --extensions-dir ~/.vscode-work-ext'
+  
+  # Testing VS Code
+  alias code-test='code --user-data-dir ~/.vscode-test --extensions-dir ~/.vscode-test-ext'
+  ```
+  
+  Usage:
+  ```bash
+  code-personal myproject/
+  code-work company-repo/
+  ```
+</Accordion>
+
+### Version Management
+
+Configure which version of VS Code to use:
+
+<CodeGroup>
+```bash Use stable
+code version use stable
+```
+
+```bash Use insiders
+code version use insiders
+```
+
+```bash Use specific version
+code version use 1.85.0
+```
+
+```bash Use custom installation
+code version use /custom/path/to/vscode
+```
+</CodeGroup>
+
+### Show Current Version
+
+```bash
+code version show
+```
+
+Output:
+```
+Current quality: stable
+Installation path: /Applications/Visual Studio Code.app/Contents/Resources/app/bin/code
+```
+
+## Tunnel Configuration
+
+### Persistent Tunnel Settings
+
+Configure tunnels to start with specific settings:
+
+```bash
+# Create a script for your tunnel configuration
+cat > ~/start-tunnel.sh << 'EOF'
+#!/bin/bash
+code tunnel \
+  --name my-dev-machine \
+  --no-sleep \
+  --accept-server-license-terms \
+  --server-data-dir ~/.vscode-server \
+  --extensions-dir ~/.vscode-server-extensions \
+  --install-extension ms-python.python \
+  --install-extension ms-vscode.cpptools \
+  --reconnection-grace-time 7200 \
+  --log info \
+  --log-to-file ~/.vscode-server/tunnel.log
+EOF
+
+chmod +x ~/start-tunnel.sh
+```
+
+### Tunnel Service Configuration
+
+When installing as a service, the configuration is saved:
+
+```bash
+# Install with specific configuration
+code tunnel service install \
+  --name production-server \
+  --accept-server-license-terms
+
+# The service will use these settings on every start
+```
+
+### Authentication Configuration
+
+Authentication tokens are stored securely in your system's credential manager:
+
+<Tabs>
+  <Tab title="Linux">
+    - **Secret Service** (GNOME Keyring, KDE Wallet)
+    - **keyutils** (kernel keyring)
+    
+    Credentials are encrypted and tied to your user session.
+  </Tab>
+  
+  <Tab title="macOS">
+    - **Keychain**
+    
+    Credentials are stored in the login keychain.
+    
+    View/manage in Keychain Access app:
+    ```bash
+    open -a "Keychain Access"
+    # Search for "vscode"
+    ```
+  </Tab>
+  
+  <Tab title="Windows">
+    - **Windows Credential Manager**
+    
+    View/manage credentials:
+    ```powershell
+    control /name Microsoft.CredentialManager
+    ```
+  </Tab>
+</Tabs>
+
+## Server Configuration
+
+### Server Data Directory
+
+Customize where tunnel server data is stored:
+
+```bash
+code tunnel --server-data-dir ~/.custom-vscode-server
+```
+
+This directory contains:
+- Server installations
+- Extension storage
+- Server logs
+- User data
+- Workspace storage
+
+### Extensions Directory
+
+Use a custom location for server extensions:
+
+```bash
+code tunnel --extensions-dir ~/.custom-extensions
+```
+
+Useful for:
+- Shared extension storage
+- Network-mounted extensions
+- Separate extension sets per project
+
+### Pre-installed Extensions
+
+Automatically install extensions when starting a tunnel:
+
+```bash
+code tunnel \
+  --install-extension ms-python.python \
+  --install-extension ms-vscode.cpptools \
+  --install-extension dbaeumer.vscode-eslint
+```
+
+### Connection Settings
+
+<ParamField path="--reconnection-grace-time" type="number" default="10800">
+  Time in seconds to wait for client reconnection before shutting down the server.
+  
+  ```bash
+  # 2 hours
+  code tunnel --reconnection-grace-time 7200
+  
+  # 24 hours
+  code tunnel --reconnection-grace-time 86400
+  ```
+</ParamField>
+
+## Web Server Configuration
+
+Configure the local web server (`serve-web` command).
+
+### Network Settings
+
+<CodeGroup>
+```bash Default (localhost:8000)
+code serve-web
+```
+
+```bash Custom host and port
+code serve-web --host 0.0.0.0 --port 3000
+```
+
+```bash Random port
+code serve-web --port 0
+```
+
+```bash Unix socket
+code serve-web --socket-path /tmp/vscode.sock
+```
+</CodeGroup>
+
+### Security Configuration
+
+<CodeGroup>
+```bash Connection token
+code serve-web --connection-token my-secret-token
+```
+
+```bash Token from file
+code serve-web --connection-token-file ~/.vscode-token
+```
+
+```bash No token (secure network only)
+code serve-web --without-connection-token
+```
+</CodeGroup>
+
+<Warning>
+Only use `--without-connection-token` on trusted networks or with additional security measures in place.
+</Warning>
+
+### Server Paths
+
+<CodeGroup>
+```bash Base path
+code serve-web --server-base-path /vscode
+# Access at: http://localhost:8000/vscode
+```
+
+```bash Custom data directory
+code serve-web --server-data-dir ~/.vscode-server-data
+```
+
+```bash Specific commit
+code serve-web --commit-id abc123def456
+```
+</CodeGroup>
+
+## Shell Integration
+
+### Command Aliases
+
+Create shortcuts for common operations:
+
+<CodeGroup>
+```bash ~/.bashrc or ~/.zshrc
+# Quick tunnel start
+alias tunnel='code tunnel --accept-server-license-terms --no-sleep'
+
+# Tunnel with monitoring
+alias tunnel-debug='code tunnel --verbose --log debug'
+
+# Extension management
+alias ext-list='code ext list --show-versions'
+alias ext-update='code ext update'
+
+# Version switching
+alias code-stable='code version use stable'
+alias code-insiders='code version use insiders'
+
+# Quick status
+alias tunnel-status='code tunnel status'
+```
+
+```fish Fish shell
+# ~/.config/fish/config.fish
+alias tunnel='code tunnel --accept-server-license-terms --no-sleep'
+alias tunnel-debug='code tunnel --verbose --log debug'
+alias ext-list='code ext list --show-versions'
+```
+
+```powershell PowerShell
+# $PROFILE
+Set-Alias tunnel 'code tunnel --accept-server-license-terms --no-sleep'
+Set-Alias ext-list 'code ext list --show-versions'
+```
+</CodeGroup>
+
+### Git Integration
+
+Configure VS Code as your Git editor:
+
+<CodeGroup>
+```bash Commit messages
+git config --global core.editor "code --wait"
+```
+
+```bash Diff tool
+git config --global diff.tool vscode
+git config --global difftool.vscode.cmd 'code --wait --diff $LOCAL $REMOTE'
+```
+
+```bash Merge tool
+git config --global merge.tool vscode
+git config --global mergetool.vscode.cmd 'code --wait $MERGED'
+```
+</CodeGroup>
+
+### Shell Functions
+
+Create more complex CLI operations:
+
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+
+# Open current directory in VS Code
+function c() {
+  if [ -z "$1" ]; then
+    code .
+  else
+    code "$1"
+  fi
+}
+
+# Search and open file in VS Code
+function cf() {
+  local file=$(find . -name "*$1*" | head -1)
+  if [ -n "$file" ]; then
+    code "$file"
+  else
+    echo "File not found: $1"
+  fi
+}
+
+# Create new file and open in VS Code
+function cn() {
+  touch "$1"
+  code "$1"
+}
+
+# Install extension by searching
+function ext-search() {
+  code ext list | grep -i "$1"
+}
+
+# Backup extensions list
+function ext-backup() {
+  code ext list > ~/.vscode-extensions-backup.txt
+  echo "Extensions backed up to ~/.vscode-extensions-backup.txt"
+}
+
+# Restore extensions
+function ext-restore() {
+  cat ~/.vscode-extensions-backup.txt | xargs -L 1 code ext install
+}
+```
+
+## Advanced Configuration
+
+### Automation Scripts
+
+Create scripts for complex workflows:
+
+<Accordion title="Daily Development Script">
+  ```bash
+  #!/bin/bash
+  # ~/bin/start-dev.sh
+  
+  set -e
+  
+  echo "Starting development environment..."
+  
+  # Ensure tunnel is running
+  if ! code tunnel status &> /dev/null; then
+    echo "Starting tunnel..."
+    code tunnel --name dev-machine --no-sleep --accept-server-license-terms &
+    sleep 5
+  fi
+  
+  # Update extensions
+  echo "Updating extensions..."
+  code ext update
+  
+  # Open project
+  echo "Opening project..."
+  code ~/projects/main-project
+  
+  echo "Development environment ready!"
+  ```
+</Accordion>
+
+<Accordion title="CI/CD Pipeline Integration">
+  ```yaml
+  # .github/workflows/vscode-tunnel.yml
+  name: Start VS Code Tunnel
+  
+  on:
+    workflow_dispatch:
+  
+  jobs:
+    tunnel:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Install VS Code CLI
+          run: |
+            curl -Lk 'https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64' --output vscode_cli.tar.gz
+            tar -xf vscode_cli.tar.gz
+        
+        - name: Start Tunnel
+          env:
+            VSCODE_CLI_ACCESS_TOKEN: ${{ secrets.VSCODE_ACCESS_TOKEN }}
+          run: |
+            ./code tunnel user login --provider github
+            ./code tunnel --random-name --accept-server-license-terms &
+            sleep 3600  # Keep alive for 1 hour
+  ```
+</Accordion>
+
+<Accordion title="Multi-Machine Sync Script">
+  ```bash
+  #!/bin/bash
+  # sync-vscode-config.sh
+  
+  CONFIG_REPO="git@github.com:username/vscode-config.git"
+  CONFIG_DIR="~/.vscode-config"
+  
+  # Clone or update config repo
+  if [ -d "$CONFIG_DIR" ]; then
+    cd "$CONFIG_DIR" && git pull
+  else
+    git clone "$CONFIG_REPO" "$CONFIG_DIR"
+  fi
+  
+  # Install extensions from list
+  if [ -f "$CONFIG_DIR/extensions.txt" ]; then
+    cat "$CONFIG_DIR/extensions.txt" | xargs -L 1 code ext install
+  fi
+  
+  # Copy settings
+  if [ -f "$CONFIG_DIR/settings.json" ]; then
+    cp "$CONFIG_DIR/settings.json" ~/.vscode/settings.json
+  fi
+  
+  echo "VS Code configuration synced!"
+  ```
+</Accordion>
+
+### Docker Integration
+
+Run VS Code tunnel in a Docker container:
+
+```dockerfile
+FROM ubuntu:22.04
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install VS Code CLI
+RUN curl -Lk 'https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64' --output /tmp/vscode_cli.tar.gz \
+    && tar -xf /tmp/vscode_cli.tar.gz -C /usr/local/bin \
+    && rm /tmp/vscode_cli.tar.gz
+
+# Set up user
+RUN useradd -m -s /bin/bash vscode
+USER vscode
+WORKDIR /home/vscode
+
+# Start tunnel
+ENV VSCODE_CLI_ACCESS_TOKEN=""
+CMD ["code", "tunnel", "--accept-server-license-terms", "--random-name"]
+```
+
+```bash
+# Build and run
+docker build -t vscode-tunnel .
+docker run -e VSCODE_CLI_ACCESS_TOKEN="your_token" vscode-tunnel
+```
+
+## Troubleshooting Configuration
+
+<AccordionGroup>
+  <Accordion title="Finding Configuration Files">
+    ```bash
+    # Show CLI data directory
+    code --verbose tunnel 2>&1 | grep "data dir"
+    
+    # List all CLI files
+    ls -la ~/.vscode-oss/cli/
+    
+    # Check environment variables
+    env | grep VSCODE
+    ```
+  </Accordion>
+  
+  <Accordion title="Resetting Configuration">
+    ```bash
+    # Backup current config
+    cp -r ~/.vscode-oss/cli ~/.vscode-oss/cli.backup
+    
+    # Remove CLI data
+    rm -rf ~/.vscode-oss/cli
+    
+    # Logout and clear credentials
+    code tunnel user logout
+    
+    # Start fresh
+    code tunnel
+    ```
+  </Accordion>
+  
+  <Accordion title="Debugging Configuration Issues">
+    ```bash
+    # Verbose output shows configuration being used
+    code --verbose --log debug tunnel
+    
+    # Check which config values are active
+    code --help
+    
+    # Test with minimal config
+    code --cli-data-dir /tmp/test-cli tunnel --random-name
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Security" icon="shield">
+    - Never commit access tokens to version control
+    - Use environment variables for sensitive data
+    - Rotate credentials regularly
+    - Use connection tokens for web servers
+    - Keep CLI updated for security patches
+  </Card>
+  
+  <Card title="Organization" icon="folder">
+    - Use separate data directories for different projects
+    - Create shell aliases for common operations
+    - Document your configuration in version control
+    - Keep extension lists backed up
+    - Use descriptive tunnel names
+  </Card>
+  
+  <Card title="Performance" icon="gauge-high">
+    - Use appropriate log levels
+    - Set reasonable reconnection times
+    - Pre-install frequently used extensions
+    - Prune unused tunnel servers regularly
+    - Monitor resource usage
+  </Card>
+  
+  <Card title="Maintenance" icon="wrench">
+    - Regularly update the CLI
+    - Clean up old log files
+    - Review and update configurations
+    - Test backup/restore procedures
+    - Document custom scripts
+  </Card>
+</CardGroup>
+
+## Configuration Examples
+
+### Complete Tunnel Setup
+
+```bash
+#!/bin/bash
+# production-tunnel.sh - Complete production tunnel setup
+
+set -euo pipefail
+
+# Configuration
+TUNNEL_NAME="production-server-01"
+DATA_DIR="/opt/vscode-tunnel"
+LOG_FILE="/var/log/vscode-tunnel.log"
+
+# Extensions to install
+EXTENSIONS=(
+  "ms-python.python"
+  "ms-vscode.cpptools"
+  "dbaeumer.vscode-eslint"
+  "esbenp.prettier-vscode"
+)
+
+# Create directories
+mkdir -p "$DATA_DIR"
+
+# Install extensions
+for ext in "${EXTENSIONS[@]}"; do
+  echo "Installing extension: $ext"
+  code ext install "$ext"
+done
+
+# Start tunnel service
+code tunnel service install \
+  --name "$TUNNEL_NAME" \
+  --accept-server-license-terms
+
+echo "Tunnel service installed: $TUNNEL_NAME"
+echo "Check status: code tunnel status"
+echo "View logs: code tunnel service log"
+```
+
+### Development Environment
+
+```bash
+# ~/.config/vscode-cli/dev-env.sh
+
+export VSCODE_CLI_DATA_DIR="$HOME/.vscode-dev"
+export VSCODE_CLI_NONINTERACTIVE=0
+
+# Aliases
+alias dev-tunnel='code tunnel --name dev-laptop --no-sleep'
+alias dev-code='code --user-data-dir ~/.vscode-dev --extensions-dir ~/.vscode-dev-ext'
+alias dev-web='code serve-web --port 8000'
+
+# Functions
+dev-start() {
+  dev-tunnel &
+  sleep 3
+  echo "Development tunnel started"
+  code tunnel status
+}
+
+dev-stop() {
+  code tunnel kill
+  echo "Development tunnel stopped"
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Commands Reference" icon="terminal" href="/cli/commands">
+    Explore all CLI commands
+  </Card>
+  
+  <Card title="Remote Tunnels" icon="network-wired" href="/cli/tunnel">
+    Set up remote access
+  </Card>
+  
+  <Card title="Installation" icon="download" href="/cli/installation">
+    Install the CLI
+  </Card>
+  
+  <Card title="Overview" icon="book" href="/cli/overview">
+    Back to CLI overview
+  </Card>
+</CardGroup>

@@ -1,0 +1,373 @@
+---
+title: Instantiation Service
+description: Learn about VS Code's dependency injection system and the Instantiation Service
+---
+
+The Instantiation Service is VS Code's dependency injection (DI) framework. It manages service lifetimes, resolves dependencies automatically, and provides a clean way to access platform services throughout the codebase.
+
+## Overview
+
+VS Code uses constructor-based dependency injection with decorators to declare service dependencies. The Instantiation Service creates instances with all their dependencies automatically resolved.
+
+## Core Concepts
+
+### Service Identifiers
+
+Services are identified by unique `ServiceIdentifier` tokens created with `createDecorator`:
+
+```typescript
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export interface IMyService {
+  readonly _serviceBrand: undefined;
+  
+  doSomething(): void;
+}
+
+export const IMyService = createDecorator<IMyService>('myService');
+```
+
+<Note>
+**Service Brand**: The `_serviceBrand` property is a TypeScript trick that ensures type safety. It's never actually used at runtime but prevents accidental type mismatches.
+</Note>
+
+### Service Implementation
+
+Implement services as classes and declare dependencies using parameter decorators:
+
+```typescript
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
+export class MyService implements IMyService {
+  declare readonly _serviceBrand: undefined;
+
+  constructor(
+    @IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+    @IConfigurationService private readonly configService: IConfigurationService
+  ) {
+    // Dependencies are automatically injected
+  }
+
+  doSomething(): void {
+    const config = this.configService.getValue('myExtension.setting');
+    const workspace = this.workspaceService.getWorkspace();
+    // Use the services...
+  }
+}
+```
+
+### Registering Services
+
+Register services using `ServiceCollection` or `SyncDescriptor`:
+
+```typescript
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+
+const services = new ServiceCollection();
+
+// Register with an instance
+services.set(IMyService, new MyService(...));
+
+// Or register with a descriptor (lazy instantiation)
+services.set(IMyService, new SyncDescriptor(MyService));
+
+const instantiationService = new InstantiationService(services);
+```
+
+## The IInstantiationService Interface
+
+```typescript
+export interface IInstantiationService {
+  readonly _serviceBrand: undefined;
+
+  /**
+   * Synchronously creates an instance that is denoted by the descriptor
+   */
+  createInstance<T>(descriptor: SyncDescriptor0<T>): T;
+  createInstance<Ctor extends new (...args: any[]) => unknown, R extends InstanceType<Ctor>>(
+    ctor: Ctor, 
+    ...args: GetLeadingNonServiceArgs<ConstructorParameters<Ctor>>
+  ): R;
+
+  /**
+   * Calls a function with a service accessor.
+   */
+  invokeFunction<R, TS extends any[] = []>(
+    fn: (accessor: ServicesAccessor, ...args: TS) => R, 
+    ...args: TS
+  ): R;
+
+  /**
+   * Creates a child of this service which inherits all current services
+   * and adds/overwrites the given services.
+   */
+  createChild(services: ServiceCollection, store?: DisposableStore): IInstantiationService;
+
+  /**
+   * Disposes this instantiation service.
+   */
+  dispose(): void;
+}
+```
+
+## Common Usage Patterns
+
+<Accordion title="Creating Instances with Dependencies">
+
+Use `createInstance()` to instantiate classes with automatic dependency resolution:
+
+```typescript
+// In a class that receives IInstantiationService
+class MyController {
+  constructor(
+    @IInstantiationService private readonly instantiationService: IInstantiationService
+  ) {}
+
+  createWidget(): MyWidget {
+    // MyWidget's dependencies will be automatically injected
+    return this.instantiationService.createInstance(MyWidget);
+  }
+}
+```
+
+You can also pass additional static arguments:
+
+```typescript
+class MyWidget {
+  constructor(
+    private readonly id: string,  // Static argument
+    private readonly name: string,  // Static argument
+    @IConfigurationService private readonly configService: IConfigurationService  // Injected
+  ) {}
+}
+
+// Create with static args
+const widget = this.instantiationService.createInstance(MyWidget, 'widget-1', 'My Widget');
+```
+
+</Accordion>
+
+<Accordion title="Using invokeFunction for Service Access">
+
+`invokeFunction()` lets you access services without creating a class:
+
+```typescript
+this.instantiationService.invokeFunction((accessor) => {
+  const configService = accessor.get(IConfigurationService);
+  const workspaceService = accessor.get(IWorkspaceContextService);
+  
+  const config = configService.getValue('myExtension.setting');
+  const workspace = workspaceService.getWorkspace();
+  
+  // Do something with the services...
+});
+```
+
+This is useful for one-off operations or when you need services in a function rather than a class.
+
+</Accordion>
+
+<Accordion title="Creating Child Instantiation Services">
+
+Child services inherit parent services but can override specific ones:
+
+```typescript
+const childServices = new ServiceCollection();
+childServices.set(IMyService, new TestMyService());  // Override for testing
+
+const childInstantiationService = parentInstantiationService.createChild(childServices);
+
+// Instances created by child will use TestMyService
+const instance = childInstantiationService.createInstance(MyComponent);
+```
+
+This is commonly used for:
+- Testing (mocking services)
+- Scoped services (window-specific, editor-specific)
+- Isolated contexts
+
+</Accordion>
+
+## Service Descriptors
+
+`SyncDescriptor` enables lazy service instantiation:
+
+```typescript
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+
+export class SyncDescriptor<T> {
+  readonly ctor: any;
+  readonly staticArguments: unknown[];
+  readonly supportsDelayedInstantiation: boolean;
+
+  constructor(
+    ctor: new (...args: any[]) => T, 
+    staticArguments: unknown[] = [], 
+    supportsDelayedInstantiation: boolean = false
+  ) {
+    this.ctor = ctor;
+    this.staticArguments = staticArguments;
+    this.supportsDelayedInstantiation = supportsDelayedInstantiation;
+  }
+}
+```
+
+Benefits of using descriptors:
+- Services are only created when first accessed
+- Reduces startup time
+- Enables cyclic dependency resolution
+- Supports delayed instantiation via proxies
+
+## Advanced Features
+
+### Cyclic Dependency Detection
+
+The Instantiation Service detects and reports cyclic dependencies:
+
+```typescript
+// This will throw a CyclicDependencyError
+class ServiceA {
+  constructor(@IServiceB serviceB: IServiceB) {}
+}
+
+class ServiceB {
+  constructor(@IServiceA serviceA: IServiceA) {}
+}
+```
+
+The error message includes a graph showing the dependency cycle.
+
+### Delayed Instantiation
+
+Services can opt into delayed instantiation using proxies:
+
+```typescript
+services.set(IMyService, new SyncDescriptor(
+  MyService, 
+  [], 
+  true  // supportsDelayedInstantiation
+));
+```
+
+With delayed instantiation:
+- A proxy is returned immediately
+- The real service is created during idle time or on first property access
+- Event subscriptions work correctly before instantiation
+- Improves startup performance for heavy services
+
+### Service Collection
+
+```typescript
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+
+export class ServiceCollection {
+  constructor(...entries: [ServiceIdentifier<any>, any][]) {
+    // Initialize with entries
+  }
+
+  set<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | SyncDescriptor<T>): T | SyncDescriptor<T>;
+  has(id: ServiceIdentifier<any>): boolean;
+  get<T>(id: ServiceIdentifier<T>): T | SyncDescriptor<T>;
+}
+```
+
+## Real-World Example
+
+Here's how the Editor service is typically structured:
+
+```typescript
+// Define the service interface
+export const ICodeEditorService = createDecorator<ICodeEditorService>('codeEditorService');
+
+export interface ICodeEditorService {
+  readonly _serviceBrand: undefined;
+  
+  getActiveCodeEditor(): ICodeEditor | null;
+  listCodeEditors(): ICodeEditor[];
+  registerDecorationType(key: string, options: IDecorationRenderOptions): void;
+}
+
+// Implement the service
+export class CodeEditorService implements ICodeEditorService {
+  declare readonly _serviceBrand: undefined;
+
+  private readonly _editors = new Map<string, ICodeEditor>();
+
+  constructor(
+    @IThemeService private readonly themeService: IThemeService,
+    @IConfigurationService private readonly configService: IConfigurationService
+  ) {
+    // Setup...
+  }
+
+  getActiveCodeEditor(): ICodeEditor | null {
+    // Implementation...
+  }
+
+  listCodeEditors(): ICodeEditor[] {
+    return Array.from(this._editors.values());
+  }
+
+  registerDecorationType(key: string, options: IDecorationRenderOptions): void {
+    // Use theme service and config service
+    const theme = this.themeService.getColorTheme();
+    // ...
+  }
+}
+```
+
+## Best Practices
+
+<Info>
+**Always use interfaces**: Define service interfaces separately from implementations. This enables testing with mock implementations.
+</Info>
+
+<Note>
+**One service identifier per service**: Each service should have exactly one `ServiceIdentifier`. Don't create multiple identifiers for the same service.
+</Note>
+
+<Info>
+**Minimize constructor logic**: Keep constructor logic minimal. Use initialization methods or lifecycle hooks for complex setup.
+</Info>
+
+<Note>
+**Dispose resources**: If your service holds resources (subscriptions, file handles), implement `IDisposable` and clean up in `dispose()`.
+</Note>
+
+## Testing with Dependency Injection
+
+The DI system makes testing easy:
+
+```typescript
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+
+suite('MyService', () => {
+  let instantiationService: TestInstantiationService;
+  let myService: MyService;
+
+  setup(() => {
+    instantiationService = new TestInstantiationService();
+    
+    // Mock dependencies
+    instantiationService.stub(IConfigurationService, new MockConfigurationService());
+    instantiationService.stub(IWorkspaceContextService, new MockWorkspaceService());
+    
+    myService = instantiationService.createInstance(MyService);
+  });
+
+  test('should do something', () => {
+    myService.doSomething();
+    // Assert...
+  });
+});
+```
+
+## See Also
+
+- [Service Collection API](/api/platform/services)
+- [Lifecycle Management](/api/platform/lifecycle)
+- [Testing Services](/testing/unit-tests)

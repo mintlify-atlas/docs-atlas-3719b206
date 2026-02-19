@@ -1,0 +1,600 @@
+---
+title: Debugging VS Code
+description: Complete guide to debugging Visual Studio Code itself during development
+---
+
+## Overview
+
+VS Code provides comprehensive debugging capabilities for its own development. You can debug the main process, extension host, renderer process, and more using the pre-configured launch configurations.
+
+<Note>
+  All launch configurations are defined in `.vscode/launch.json` at the root of the repository.
+</Note>
+
+## Quick Start
+
+<Steps>
+  <Step title="Open VS Code">
+    Open the VS Code repository in VS Code:
+    ```bash
+    code /path/to/vscode
+    ```
+  </Step>
+
+  <Step title="Start Watch Mode">
+    Ensure code is being compiled:
+    ```bash
+    npm run watch
+    ```
+  </Step>
+
+  <Step title="Launch Debugger">
+    Press `F5` or select the **"VS Code"** configuration from the Run and Debug view.
+  </Step>
+
+  <Step title="Wait for Launch">
+    A new VS Code window will open with the debugger attached to all processes.
+  </Step>
+</Steps>
+
+<Tip>
+  If launching times out, run `./scripts/code.sh` first to set up Electron, or increase the `timeout` values in `launch.json`.
+</Tip>
+
+## Debug Configurations
+
+### Main Configurations
+
+<Tabs>
+  <Tab title="VS Code (Full)">
+    **Configuration**: `VS Code`
+
+    **Type**: Compound (multiple processes)
+
+    Launches VS Code with debuggers attached to:
+    - Main Process
+    - Renderer Process
+    - Extension Host
+    - Shared Process
+
+    **Usage**: Press `F5` or select from debug dropdown
+
+    **Environment Variables**:
+    - `VSCODE_EXTHOST_WILL_SEND_SOCKET=null`
+    - `VSCODE_SKIP_PRELAUNCH=1`
+    - `VSCODE_DEV_DEBUG_OBSERVABLES=1`
+
+    **User Data**: `~/.vscode-oss-dev`
+  </Tab>
+
+  <Tab title="VS Code (Hot Reload)">
+    **Configuration**: `VS Code (Hot Reload)`
+
+    **Type**: Compound with Vite integration
+
+    Enables hot reloading for faster development iteration:
+    - Real-time code updates without restart
+    - Vite-powered Monaco Editor
+    - All debuggers attached
+
+    **Pre-launch Task**: `Launch Monaco Editor Vite`
+
+    **Special Environment**:
+    - `VSCODE_DEV_SERVER_URL=http://localhost:5199/build/vite/workbench-vite-electron.html`
+    - `DEV_WINDOW_SRC=http://localhost:5199/build/vite/workbench-vite-electron.html`
+  </Tab>
+
+  <Tab title="Launch VS Code Internal">
+    **Configuration**: `Launch VS Code Internal`
+
+    **Type**: Chrome debugger
+
+    Launches VS Code with Chrome DevTools attached to the renderer process.
+
+    **Runtime Arguments**:
+    ```bash
+    --inspect-brk=5875
+    --no-cached-data
+    --crash-reporter-directory=${workspaceFolder}/.profile-oss/crashes
+    --disable-features=CalculateNativeWinOcclusion
+    --disable-extension=vscode.vscode-api-tests
+    ```
+
+    **Debug Port**: 9222
+  </Tab>
+
+  <Tab title="Main Process">
+    **Configuration**: `Main Process`
+
+    **Type**: Node debugger
+
+    Debugs only the Electron main process:
+    - Application lifecycle
+    - Window management
+    - Native integration
+
+    **Launch Script**:
+    - Linux/macOS: `scripts/code.sh`
+    - Windows: `scripts/code.bat`
+
+    **Debug Port**: 5875
+  </Tab>
+</Tabs>
+
+### Process-Specific Debugging
+
+<CardGroup cols={2}>
+  <Card title="Extension Host" icon="puzzle-piece">
+    **Port**: 5870
+
+    Attach to the extension host process where extensions run.
+
+    **Launch Config**: `Attach to Extension Host`
+
+    **Use Case**: Debug extension execution, API calls, language features
+  </Card>
+
+  <Card title="Shared Process" icon="share-nodes">
+    **Port**: 5879
+
+    Attach to the shared process that handles background tasks.
+
+    **Launch Config**: `Attach to Shared Process`
+
+    **Use Case**: Debug services shared across windows
+  </Card>
+
+  <Card title="Search Process" icon="magnifying-glass">
+    **Port**: 5876
+
+    Attach to the search process for debugging file searching.
+
+    **Launch Config**: `Attach to Search Process`
+
+    **Use Case**: Debug search functionality, ripgrep integration
+  </Card>
+
+  <Card title="Pty Host Process" icon="terminal">
+    **Port**: 5877
+
+    Attach to the pseudoterminal host process.
+
+    **Launch Config**: `Attach to Pty Host Process`
+
+    **Use Case**: Debug terminal functionality, shell integration
+  </Card>
+</CardGroup>
+
+## Debugging Specific Components
+
+### Built-in Extensions
+
+<Tabs>
+  <Tab title="Extension Tests">
+    Run and debug extension tests:
+
+    ```json
+    {
+      "type": "extensionHost",
+      "name": "VS Code API Tests (single folder)",
+      "args": [
+        "${workspaceFolder}/extensions/vscode-api-tests/testWorkspace",
+        "--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-api-tests",
+        "--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/singlefolder-tests",
+        "--disable-extensions"
+      ]
+    }
+    ```
+
+    Available extension test configurations:
+    - API Tests (single folder)
+    - API Tests (workspace)
+    - Git Tests
+    - Markdown Tests
+    - TypeScript Tests
+    - Emmet Tests
+  </Tab>
+
+  <Tab title="Language Features">
+    Debug language feature extensions:
+
+    **TypeScript Extension**:
+    ```bash
+    # Select: "TypeScript Extension Tests"
+    # Workspace: extensions/typescript-language-features/test-workspace
+    ```
+
+    **Markdown Extension**:
+    ```bash
+    # Select: "Markdown Extension Tests"
+    # Workspace: extensions/markdown-language-features/test-workspace
+    ```
+  </Tab>
+
+  <Tab title="Custom Extension">
+    Debug any built-in extension:
+
+    ```json
+    {
+      "type": "extensionHost",
+      "name": "Launch Built-in Extension",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceRoot}/extensions/[extension-name]"
+      ]
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Unit Tests
+
+<Tabs>
+  <Tab title="All Unit Tests">
+    **Configuration**: `Debug Unit Tests`
+
+    **Type**: Compound
+
+    Runs all unit tests with debugger attached:
+
+    ```bash
+    # Test entry point
+    test/unit/electron/index.js
+    ```
+
+    **Runtime**: Electron binary from `.build/electron/`
+
+    **Environment**:
+    - `MOCHA_COLORS=true`
+  </Tab>
+
+  <Tab title="Current File Tests">
+    **Configuration**: `Debug Unit Tests (Current File)`
+
+    Debug tests in the currently open file:
+
+    ```json
+    {
+      "args": [
+        "--remote-debugging-port=9222",
+        "--run",
+        "${relativeFile}"
+      ]
+    }
+    ```
+
+    **Usage**: Open a test file and press `F5`
+  </Tab>
+
+  <Tab title="Manual Test Run">
+    Run unit tests from command line with inspect:
+
+    ```bash
+    # Run with debugger paused at start
+    ./scripts/test.sh --inspect-brk
+
+    # Run specific test file
+    ./scripts/test.sh --run src/vs/editor/test/common/model/model.test.ts
+
+    # Filter by test name
+    ./scripts/test.sh --grep "should validate range"
+    ```
+  </Tab>
+</Tabs>
+
+### Web Development
+
+<Tabs>
+  <Tab title="VS Code Web (Chrome)">
+    **Configuration**: `VS Code Web (Chrome)`
+
+    Launch VS Code in Chrome for web development:
+
+    ```json
+    {
+      "type": "chrome",
+      "url": "http://localhost:8080",
+      "preLaunchTask": "Run code web"
+    }
+    ```
+
+    The pre-launch task starts the web server automatically.
+  </Tab>
+
+  <Tab title="VS Code Server">
+    **Configuration**: `VS Code Server (Web, Chrome)`
+
+    Launch VS Code in server mode:
+
+    ```json
+    {
+      "url": "http://localhost:8080?tkn=dev-token",
+      "preLaunchTask": "Run code server"
+    }
+    ```
+  </Tab>
+
+  <Tab title="Manual Launch">
+    Start web server manually:
+
+    ```bash
+    # Web mode
+    ./scripts/code-web.sh
+
+    # Server mode
+    ./scripts/code-server.sh
+    ```
+
+    Then attach Chrome debugger to `http://localhost:8080`
+  </Tab>
+</Tabs>
+
+## Advanced Debugging Techniques
+
+### Debugging with Source Maps
+
+VS Code is compiled TypeScript with source maps:
+
+<Steps>
+  <Step title="Source Map Configuration">
+    Source maps are configured in launch.json:
+
+    ```json
+    {
+      "outFiles": [
+        "${workspaceFolder}/out/**/*.js"
+      ],
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/out/**/*.js"
+      ],
+      "perScriptSourcemaps": "yes"
+    }
+    ```
+  </Step>
+
+  <Step title="Set Breakpoints">
+    Set breakpoints directly in TypeScript source files in `src/`.
+    The debugger will map them to the compiled JavaScript.
+  </Step>
+
+  <Step title="View Original Source">
+    When paused at a breakpoint, the debugger shows the original TypeScript source.
+  </Step>
+</Steps>
+
+### Debugging Observables
+
+<Note>
+  To debug observables, install the extension `ms-vscode.debug-value-editor`.
+</Note>
+
+Enable observable debugging:
+
+```json
+{
+  "env": {
+    "VSCODE_DEV_DEBUG_OBSERVABLES": "1"
+  }
+}
+```
+
+This allows you to inspect observable values in the debugger.
+
+### Debugging Native Modules
+
+For debugging native Node modules:
+
+<CodeGroup>
+```bash C++ Debugging (macOS)
+# Launch with lldb
+lldb .build/electron/Code\ -\ OSS.app/Contents/MacOS/Code\ -\ OSS
+
+# Set breakpoints in native code
+(lldb) breakpoint set --name nativeFunction
+```
+
+```bash C++ Debugging (Linux)
+# Launch with gdb
+gdb .build/electron/code-oss
+
+# Set breakpoints
+(gdb) break nativeFunction
+```
+</CodeGroup>
+
+### Remote Debugging
+
+Debug VS Code running on a remote machine:
+
+<Steps>
+  <Step title="Start VS Code with Debug Port">
+    On the remote machine:
+    ```bash
+    ./scripts/code.sh --inspect=0.0.0.0:9229
+    ```
+  </Step>
+
+  <Step title="Forward Port">
+    Forward the debug port via SSH:
+    ```bash
+    ssh -L 9229:localhost:9229 user@remote-host
+    ```
+  </Step>
+
+  <Step title="Attach Debugger">
+    Create a launch configuration:
+    ```json
+    {
+      "type": "node",
+      "request": "attach",
+      "name": "Attach to Remote",
+      "address": "localhost",
+      "port": 9229
+    }
+    ```
+  </Step>
+</Steps>
+
+## Debugging Tips
+
+<AccordionGroup>
+  <Accordion title="Use Compound Configurations">
+    The "VS Code" compound configuration attaches to all processes at once, giving you complete debugging coverage:
+
+    ```json
+    {
+      "name": "VS Code",
+      "configurations": [
+        "Launch VS Code Internal",
+        "Attach to Main Process",
+        "Attach to Extension Host",
+        "Attach to Shared Process"
+      ]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Developer Tools">
+    Access Chrome DevTools in the running instance:
+    - **Command Palette**: `Developer: Toggle Developer Tools`
+    - **Keyboard**: `Cmd/Ctrl + Shift + I`
+
+    DevTools are useful for:
+    - Inspecting DOM elements
+    - Viewing console logs
+    - Network requests
+    - Performance profiling
+  </Accordion>
+
+  <Accordion title="Logging">
+    Enable detailed logging:
+
+    ```bash
+    # Electron logging
+    export ELECTRON_ENABLE_LOGGING=1
+
+    # VS Code logging
+    ./scripts/code.sh --log trace
+
+    # Specific log level
+    ./scripts/code.sh --log-level=trace
+    ```
+
+    Logs are saved to:
+    - macOS: `~/Library/Application Support/Code - OSS/logs`
+    - Linux: `~/.config/Code - OSS/logs`
+    - Windows: `%APPDATA%\Code - OSS\logs`
+  </Accordion>
+
+  <Accordion title="Disable Extensions">
+    Disable extensions to isolate issues:
+
+    ```bash
+    ./scripts/code.sh --disable-extensions
+    ```
+
+    Or selectively disable:
+    ```bash
+    ./scripts/code.sh --disable-extension=vscode.vscode-api-tests
+    ```
+  </Accordion>
+
+  <Accordion title="Clean User Data">
+    Start with fresh user data:
+
+    ```bash
+    # Temporary directory
+    ./scripts/code.sh --user-data-dir=/tmp/vscode-test
+
+    # The dev profile
+    rm -rf ~/.vscode-oss-dev
+    ```
+  </Accordion>
+
+  <Accordion title="Debug Console">
+    Use the Debug Console for REPL during debugging:
+    - Evaluate expressions
+    - Call functions
+    - Inspect variables
+
+    Example:
+    ```javascript
+    > this._editor.getModel().getValue()
+    > this._onDidChange.fire()
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Debugging Smoke Tests
+
+Run smoke tests with debugging:
+
+```bash
+# Run smoke tests
+npm run smoketest
+
+# Without recompilation
+npm run smoketest-no-compile
+
+# With specific test
+cd test/smoke && node test/index.js --grep "should open file"
+```
+
+Launch configuration:
+
+```json
+{
+  "name": "Launch Smoke Test",
+  "program": "${workspaceFolder}/test/smoke/test/index.js",
+  "cwd": "${workspaceFolder}/test/smoke",
+  "timeout": 240000
+}
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Debugger Won't Attach">
+    1. Ensure watch mode is running: `npm run watch`
+    2. Check that Electron is downloaded: `npm run electron`
+    3. Increase timeout in launch.json
+    4. Try running `./scripts/code.sh` first
+  </Accordion>
+
+  <Accordion title="Breakpoints Not Hit">
+    1. Verify source maps are generated (check `out/` directory)
+    2. Ensure `outFiles` in launch.json is correct
+    3. Check that breakpoint is in executed code path
+    4. Try setting `"pauseForSourceMap": true`
+  </Accordion>
+
+  <Accordion title="Can't See Variables">
+    1. Enable source map support
+    2. Check variable scope (may be optimized away)
+    3. Try running in non-minified build
+  </Accordion>
+
+  <Accordion title="Performance Issues">
+    Debug builds are slower. For performance testing:
+    1. Build with production settings
+    2. Disable source maps temporarily
+    3. Use the Performance Profiler instead of debugger
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Running Tests" icon="flask" href="/development/running-tests">
+    Learn how to run and write tests
+  </Card>
+  <Card title="Development Workflow" icon="code" href="/development/development-workflow">
+    Understand the development process
+  </Card>
+  <Card title="Building from Source" icon="hammer" href="/development/building-from-source">
+    Review build instructions
+  </Card>
+  <Card title="Chrome DevTools" icon="chrome" href="https://developer.chrome.com/docs/devtools">
+    Learn Chrome DevTools features
+  </Card>
+</CardGroup>

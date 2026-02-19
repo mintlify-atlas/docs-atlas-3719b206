@@ -1,0 +1,548 @@
+---
+title: Keybindings
+description: Learn how to register and manage keybindings in VS Code
+---
+
+VS Code's keybinding system provides a flexible, context-aware way to bind keyboard shortcuts to commands. The platform handles cross-platform differences, chord sequences, and context-based activation.
+
+## Overview
+
+The keybinding system consists of:
+- **KeybindingsRegistry**: Stores all default and extension-provided keybindings
+- **IKeybindingService**: Runtime service that resolves keybindings and dispatches keyboard events
+- **ResolvedKeybinding**: Platform-specific representation of keybindings
+
+## KeybindingsRegistry
+
+The registry stores all built-in and extension-provided keybindings (but not user-defined ones):
+
+```typescript
+export interface IKeybindingsRegistry {
+  registerKeybindingRule(rule: IKeybindingRule): IDisposable;
+  setExtensionKeybindings(rules: IExtensionKeybindingRule[]): void;
+  registerCommandAndKeybindingRule<Args extends unknown[] = unknown[]>(
+    desc: ICommandAndKeybindingRule<Args>
+  ): IDisposable;
+  getDefaultKeybindings(): IKeybindingItem[];
+}
+```
+
+Access the global registry:
+
+```typescript
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+```
+
+## Registering Keybindings
+
+### Basic Keybinding Rule
+
+```typescript
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+
+KeybindingsRegistry.registerKeybindingRule({
+  id: 'editor.action.deleteLines',
+  weight: KeybindingWeight.EditorContrib,
+  when: ContextKeyExpr.equals('editorTextFocus', true),
+  primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyK,
+  secondary: [KeyMod.CtrlCmd | KeyCode.KeyL]
+});
+```
+
+### Keybinding Rule Interface
+
+```typescript
+export interface IKeybindingRule extends IKeybindings {
+  id: string;
+  weight: number;
+  args?: any;
+  
+  /**
+   * Keybinding is disabled if expression returns false
+   */
+  when?: ContextKeyExpression | null | undefined;
+}
+
+export interface IKeybindings {
+  primary?: number;
+  secondary?: number[];
+  
+  // Platform-specific overrides
+  win?: {
+    primary: number;
+    secondary?: number[];
+  };
+  linux?: {
+    primary: number;
+    secondary?: number[];
+  };
+  mac?: {
+    primary: number;
+    secondary?: number[];
+  };
+}
+```
+
+### Keybinding Weights
+
+Weights determine priority when multiple keybindings conflict:
+
+```typescript
+export const enum KeybindingWeight {
+  EditorCore = 0,           // Core editor bindings
+  EditorContrib = 100,      // Editor contributions
+  WorkbenchContrib = 200,   // Workbench contributions
+  BuiltinExtension = 300,   // Built-in extensions
+  ExternalExtension = 400   // External extensions
+}
+```
+
+Higher weights take precedence. User-defined keybindings always win.
+
+## Key Codes and Modifiers
+
+### Key Modifiers
+
+```typescript
+import { KeyMod } from 'vs/base/common/keyCodes';
+
+KeyMod.CtrlCmd   // Ctrl on Windows/Linux, Cmd on Mac
+KeyMod.WinCtrl   // Ctrl on all platforms
+KeyMod.Alt       // Alt key
+KeyMod.Shift     // Shift key
+```
+
+### Key Codes
+
+```typescript
+import { KeyCode } from 'vs/base/common/keyCodes';
+
+// Letters
+KeyCode.KeyA, KeyCode.KeyB, ..., KeyCode.KeyZ
+
+// Numbers
+KeyCode.Digit0, KeyCode.Digit1, ..., KeyCode.Digit9
+
+// Function keys
+KeyCode.F1, KeyCode.F2, ..., KeyCode.F12
+
+// Special keys
+KeyCode.Enter
+KeyCode.Escape
+KeyCode.Space
+KeyCode.Backspace
+KeyCode.Delete
+KeyCode.Tab
+KeyCode.UpArrow, KeyCode.DownArrow, KeyCode.LeftArrow, KeyCode.RightArrow
+
+// Numpad
+KeyCode.Numpad0, KeyCode.Numpad1, ..., KeyCode.Numpad9
+KeyCode.NumpadAdd, KeyCode.NumpadSubtract, KeyCode.NumpadMultiply, KeyCode.NumpadDivide
+```
+
+### Combining Keys
+
+Combine modifiers and keys using the bitwise OR operator:
+
+```typescript
+// Ctrl+K (Cmd+K on Mac)
+KeyMod.CtrlCmd | KeyCode.KeyK
+
+// Ctrl+Shift+P (Cmd+Shift+P on Mac)
+KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyP
+
+// Alt+F4
+KeyMod.Alt | KeyCode.F4
+```
+
+## Platform-Specific Keybindings
+
+Define different keybindings per platform:
+
+<CodeGroup>
+
+```typescript Cross-Platform
+KeybindingsRegistry.registerKeybindingRule({
+  id: 'workbench.action.files.save',
+  weight: KeybindingWeight.WorkbenchContrib,
+  primary: KeyMod.CtrlCmd | KeyCode.KeyS  // Adapts automatically
+});
+```
+
+```typescript Platform Overrides
+KeybindingsRegistry.registerKeybindingRule({
+  id: 'workbench.action.closeActiveEditor',
+  weight: KeybindingWeight.WorkbenchContrib,
+  primary: KeyMod.CtrlCmd | KeyCode.KeyW,
+  win: {
+    primary: KeyMod.CtrlCmd | KeyCode.F4,    // Ctrl+F4 on Windows
+    secondary: [KeyMod.CtrlCmd | KeyCode.KeyW]
+  },
+  mac: {
+    primary: KeyMod.CtrlCmd | KeyCode.KeyW    // Cmd+W on Mac
+  },
+  linux: {
+    primary: KeyMod.CtrlCmd | KeyCode.KeyW    // Ctrl+W on Linux
+  }
+});
+```
+
+</CodeGroup>
+
+## Chord Keybindings
+
+Chord keybindings are two-key sequences (like Ctrl+K Ctrl+C):
+
+```typescript
+import { KeyChord } from 'vs/base/common/keyCodes';
+
+KeybindingsRegistry.registerKeybindingRule({
+  id: 'editor.action.commentLine',
+  weight: KeybindingWeight.EditorContrib,
+  when: ContextKeyExpr.equals('editorTextFocus', true),
+  primary: KeyChord(
+    KeyMod.CtrlCmd | KeyCode.KeyK,  // First key
+    KeyMod.CtrlCmd | KeyCode.KeyC   // Second key
+  )
+});
+```
+
+The user must press both sequences in order. VS Code enters "chord mode" after the first key.
+
+## Context-Aware Keybindings
+
+Use `when` clauses to activate keybindings only in specific contexts:
+
+<Accordion title="Common Context Keys">
+
+```typescript
+// Editor contexts
+'editorTextFocus'           // Editor has focus
+'editorReadonly'            // Editor is readonly
+'editorHasSelection'        // Text is selected
+'editorHasMultipleSelections' // Multiple cursors
+'editorLangId'              // Editor language ID
+
+// View contexts
+'sideBarVisible'            // Sidebar is visible
+'panelVisible'              // Panel is visible
+'terminalFocus'             // Terminal has focus
+'searchViewletFocus'        // Search view has focus
+
+// Resource contexts
+'resourceExtname'           // File extension
+'resourceFilename'          // File name
+'resourceScheme'            // URI scheme
+
+// Configuration
+'config.editor.minimap.enabled'  // Config values
+```
+
+</Accordion>
+
+<Accordion title="Context Expression Examples">
+
+```typescript
+// Single condition
+when: ContextKeyExpr.equals('editorTextFocus', true)
+
+// Multiple conditions (AND)
+when: ContextKeyExpr.and(
+  ContextKeyExpr.equals('editorTextFocus', true),
+  ContextKeyExpr.equals('editorLangId', 'typescript'),
+  ContextKeyExpr.not('editorReadonly')
+)
+
+// Alternative conditions (OR)
+when: ContextKeyExpr.or(
+  ContextKeyExpr.equals('terminalFocus', true),
+  ContextKeyExpr.equals('searchViewletFocus', true)
+)
+
+// Negation
+when: ContextKeyExpr.not('editorReadonly')
+
+// Greater than / less than
+when: ContextKeyExpr.greater('editorCursorLine', 0)
+
+// Regular expression
+when: ContextKeyExpr.regex('resourceFilename', /\.test\.ts$/)
+```
+
+</Accordion>
+
+## IKeybindingService
+
+The keybinding service resolves and dispatches keybindings at runtime:
+
+```typescript
+export const IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
+
+export interface IKeybindingService {
+  readonly _serviceBrand: undefined;
+
+  readonly inChordMode: boolean;
+  readonly onDidUpdateKeybindings: Event<void>;
+
+  /**
+   * Returns none, one or many (depending on keyboard layout)
+   */
+  resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
+
+  resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
+
+  resolveUserBinding(userBinding: string): ResolvedKeybinding[];
+
+  /**
+   * Resolve and dispatch `keyboardEvent` and invoke the command
+   */
+  dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean;
+
+  /**
+   * Look up keybindings for a command
+   */
+  lookupKeybindings(commandId: string): ResolvedKeybinding[];
+
+  /**
+   * Look up the preferred keybinding for a command
+   */
+  lookupKeybinding(
+    commandId: string, 
+    context?: IContextKeyService, 
+    enforceContextCheck?: boolean
+  ): ResolvedKeybinding | undefined;
+
+  /**
+   * Get all keybindings
+   */
+  getKeybindings(): readonly ResolvedKeybindingItem[];
+
+  /**
+   * Given a UI label and command, appends the keybinding if any
+   */
+  appendKeybinding(
+    label: string, 
+    commandId: string | undefined | null, 
+    context?: IContextKeyService, 
+    enforceContextCheck?: boolean
+  ): string;
+}
+```
+
+## Using the Keybinding Service
+
+### Looking Up Keybindings
+
+```typescript
+class MyComponent {
+  constructor(
+    @IKeybindingService private readonly keybindingService: IKeybindingService
+  ) {}
+
+  showKeybindingInfo(): void {
+    // Get all keybindings for a command
+    const keybindings = this.keybindingService.lookupKeybindings('editor.action.formatDocument');
+    
+    keybindings.forEach(kb => {
+      console.log(kb.getLabel());  // "Shift+Alt+F"
+    });
+
+    // Get preferred keybinding
+    const preferred = this.keybindingService.lookupKeybinding('editor.action.formatDocument');
+    if (preferred) {
+      console.log(`Format Document: ${preferred.getLabel()}`);
+    }
+  }
+}
+```
+
+### Appending Keybindings to Labels
+
+```typescript
+// Add keybinding to a button label
+const label = this.keybindingService.appendKeybinding(
+  'Format Document',
+  'editor.action.formatDocument'
+);
+// Result: "Format Document (Shift+Alt+F)"
+```
+
+### Dispatching Keyboard Events
+
+```typescript
+class MyEditor {
+  constructor(
+    @IKeybindingService private readonly keybindingService: IKeybindingService
+  ) {}
+
+  private onKeyDown(e: IKeyboardEvent): void {
+    // Let the keybinding service handle it
+    const handled = this.keybindingService.dispatchEvent(e, this.contextKeyService);
+    
+    if (!handled) {
+      // No keybinding matched, handle manually
+      this.handleKeyDown(e);
+    }
+  }
+}
+```
+
+## Registering with Action2
+
+The recommended way to register keybindings is through `Action2`:
+
+```typescript
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+
+class MyAction extends Action2 {
+  constructor() {
+    super({
+      id: 'myExtension.myAction',
+      title: { value: 'My Action', original: 'My Action' },
+      f1: true,
+      
+      keybinding: {
+        primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM,
+        secondary: [KeyMod.Alt | KeyCode.KeyM],
+        when: ContextKeyExpr.equals('editorTextFocus', true),
+        weight: KeybindingWeight.WorkbenchContrib,
+        
+        // Platform-specific
+        win: {
+          primary: KeyMod.CtrlCmd | KeyCode.KeyM
+        }
+      }
+    });
+  }
+
+  run(accessor: ServicesAccessor): void {
+    // Action implementation
+  }
+}
+
+registerAction2(MyAction);
+```
+
+## Real-World Examples
+
+<Accordion title="Save File Keybinding">
+
+```typescript
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+  id: 'workbench.action.files.save',
+  weight: KeybindingWeight.WorkbenchContrib,
+  when: undefined,
+  primary: KeyMod.CtrlCmd | KeyCode.KeyS,
+  handler: (accessor) => {
+    const editorService = accessor.get(IEditorService);
+    return editorService.save({ editor: editorService.activeEditor });
+  }
+});
+```
+
+</Accordion>
+
+<Accordion title="Quick Open with Chord">
+
+```typescript
+KeybindingsRegistry.registerKeybindingRule({
+  id: 'workbench.action.quickOpen',
+  weight: KeybindingWeight.WorkbenchContrib,
+  when: undefined,
+  primary: KeyMod.CtrlCmd | KeyCode.KeyP,
+  secondary: [KeyMod.CtrlCmd | KeyCode.KeyE],
+  mac: {
+    primary: KeyMod.CtrlCmd | KeyCode.KeyP,
+    secondary: []
+  }
+});
+```
+
+</Accordion>
+
+<Accordion title="Context-Specific Keybinding">
+
+```typescript
+KeybindingsRegistry.registerKeybindingRule({
+  id: 'editor.action.triggerSuggest',
+  weight: KeybindingWeight.EditorContrib,
+  when: ContextKeyExpr.and(
+    ContextKeyExpr.equals('editorTextFocus', true),
+    ContextKeyExpr.not('editorReadonly'),
+    ContextKeyExpr.not('suggestWidgetVisible')
+  ),
+  primary: KeyMod.CtrlCmd | KeyCode.Space,
+  secondary: [KeyMod.CtrlCmd | KeyCode.KeyI],
+  mac: {
+    primary: KeyMod.WinCtrl | KeyCode.Space,
+    secondary: [KeyMod.Alt | KeyCode.Escape]
+  }
+});
+```
+
+</Accordion>
+
+## Best Practices
+
+<Info>
+**Use KeyMod.CtrlCmd**: Always use `KeyMod.CtrlCmd` instead of `KeyMod.WinCtrl` for better cross-platform behavior. It automatically maps to Cmd on Mac and Ctrl elsewhere.
+</Info>
+
+<Note>
+**Avoid conflicts**: Check existing keybindings before registering new ones. Use appropriate weights and context expressions to avoid conflicts.
+</Note>
+
+<Info>
+**Provide alternatives**: Consider providing secondary keybindings for discoverability and user preference.
+</Info>
+
+<Note>
+**Context awareness**: Always use `when` clauses to scope keybindings to appropriate contexts. This prevents unintended activation.
+</Note>
+
+<Info>
+**Document chord sequences**: Chord keybindings are powerful but less discoverable. Document them clearly in your extension's README.
+</Info>
+
+## Testing Keybindings
+
+```typescript
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { KeybindingService } from 'vs/platform/keybinding/browser/keybindingService';
+
+suite('Keybindings', () => {
+  let instantiationService: TestInstantiationService;
+  let keybindingService: KeybindingService;
+
+  setup(() => {
+    instantiationService = new TestInstantiationService();
+    keybindingService = instantiationService.createInstance(KeybindingService);
+  });
+
+  test('should resolve keybinding', () => {
+    const keybindings = keybindingService.lookupKeybindings('editor.action.formatDocument');
+    assert.ok(keybindings.length > 0);
+  });
+
+  test('should dispatch keybinding', () => {
+    let commandExecuted = false;
+    
+    CommandsRegistry.registerCommand('test.command', () => {
+      commandExecuted = true;
+    });
+
+    keybindingService.dispatchEvent(createKeyboardEvent(KeyCode.KeyA), target);
+    assert.ok(commandExecuted);
+  });
+});
+```
+
+## See Also
+
+- [Actions and Commands](/api/platform/actions)
+- [Context Keys](/api/platform/context-keys)
+- [Keyboard Shortcuts Reference](https://code.visualstudio.com/docs/getstarted/keybindings)

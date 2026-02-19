@@ -1,0 +1,622 @@
+---
+title: File Service
+description: Complete guide to VS Code's File Service for file system operations and file watching
+---
+
+# File Service
+
+The File Service (`IFileService`) is a platform service that provides a unified API for file system operations across different file system providers. It supports local files, remote files, virtual file systems, and custom schemes.
+
+## Service Overview
+
+The File Service is defined in `src/vs/platform/files/common/files.ts:26` and acts as a registry and coordinator for file system providers.
+
+### Service Identifier
+
+```typescript
+export const IFileService = createDecorator<IFileService>('fileService');
+```
+
+## Dependency Injection
+
+```typescript
+import { IFileService } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
+
+export class MyFileHandler {
+  constructor(
+    @IFileService private readonly fileService: IFileService
+  ) {}
+
+  async readConfig(uri: URI): Promise<string> {
+    const content = await this.fileService.readFile(uri);
+    return content.value.toString();
+  }
+}
+```
+
+## File Operations
+
+### Reading Files
+
+<Accordion title="readFile() - Read entire file into memory">
+```typescript
+import { IFileService, IFileContent } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
+
+// Read entire file
+const content: IFileContent = await fileService.readFile(
+  URI.file('/path/to/file.txt')
+);
+
+console.log('File content:', content.value.toString());
+console.log('File size:', content.size);
+console.log('Modified time:', content.mtime);
+console.log('ETag:', content.etag);
+
+// Read with options
+const limitedContent = await fileService.readFile(
+  uri,
+  {
+    position: 0,      // Start position
+    length: 1024,     // Read only 1KB
+    limits: {
+      size: 1024 * 1024  // Max 1MB
+    },
+    atomic: true      // Atomic read (waits for pending writes)
+  }
+);
+```
+</Accordion>
+
+<Accordion title="readFileStream() - Stream large files">
+```typescript
+import { IFileStreamContent } from 'vs/platform/files/common/files';
+
+// Stream large files efficiently
+const streamContent: IFileStreamContent = await fileService.readFileStream(uri);
+
+// Process stream
+const chunks: Buffer[] = [];
+streamContent.value.on('data', chunk => {
+  chunks.push(chunk);
+});
+
+await new Promise((resolve, reject) => {
+  streamContent.value.on('end', resolve);
+  streamContent.value.on('error', reject);
+});
+
+const fullContent = Buffer.concat(chunks);
+```
+</Accordion>
+
+<ParamField path="resource" type="URI" required>
+  The file URI to read
+</ParamField>
+
+<ParamField path="options" type="IReadFileOptions" optional>
+  Reading options (position, length, limits, atomic)
+</ParamField>
+
+<ParamField path="token" type="CancellationToken" optional>
+  Cancellation token to abort the read operation
+</ParamField>
+
+### Writing Files
+
+```typescript
+import { VSBuffer } from 'vs/base/common/buffer';
+
+// Write string content
+const content = VSBuffer.fromString('Hello, VS Code!');
+await fileService.writeFile(uri, content);
+
+// Write with options
+await fileService.writeFile(uri, content, {
+  overwrite: true,      // Overwrite if exists
+  create: true,         // Create if doesn't exist
+  unlock: true,         // Remove write lock if locked
+  atomic: {             // Atomic write (via temp file)
+    postfix: '.tmp'
+  },
+  append: false         // Append instead of replace
+});
+
+// Append to file
+await fileService.writeFile(uri, content, {
+  create: true,
+  append: true
+});
+```
+
+<ParamField path="resource" type="URI" required>
+  The file URI to write
+</ParamField>
+
+<ParamField path="bufferOrReadableOrStream" type="VSBuffer | VSBufferReadable | VSBufferReadableStream" required>
+  The content to write
+</ParamField>
+
+<ParamField path="options" type="IWriteFileOptions" optional>
+  Writing options (overwrite, create, unlock, atomic, append)
+</ParamField>
+
+### File System Operations
+
+<Accordion title="File and Folder Operations">
+```typescript
+// Create file
+await fileService.createFile(
+  uri,
+  VSBuffer.fromString('initial content'),
+  { overwrite: false }
+);
+
+// Create folder
+await fileService.createFolder(URI.file('/path/to/newfolder'));
+
+// Copy file or folder
+await fileService.copy(
+  sourceUri,
+  targetUri,
+  true  // overwrite
+);
+
+// Move/rename file or folder
+await fileService.move(
+  oldUri,
+  newUri,
+  true  // overwrite
+);
+
+// Delete file or folder
+await fileService.del(uri, {
+  recursive: true,      // Delete folders recursively
+  useTrash: true,       // Move to trash instead of permanent delete
+  atomic: false
+});
+
+// Clone file (faster than copy for same filesystem)
+await fileService.cloneFile(sourceUri, targetUri);
+```
+</Accordion>
+
+<Accordion title="File Validation Operations">
+```typescript
+// Check if file exists
+const exists = await fileService.exists(uri);
+
+// Check if operation is allowed (doesn't modify disk)
+const canCreate = await fileService.canCreateFile(uri);
+const canCopy = await fileService.canCopy(source, target, true);
+const canMove = await fileService.canMove(source, target, true);
+const canDelete = await fileService.canDelete(uri, { recursive: true });
+
+if (canMove !== true) {
+  console.error('Cannot move file:', canMove.message);
+}
+```
+</Accordion>
+
+## File Metadata and Resolution
+
+### stat() - Get File Metadata
+
+```typescript
+import { IFileStatWithPartialMetadata, FileType } from 'vs/platform/files/common/files';
+
+const stat: IFileStatWithPartialMetadata = await fileService.stat(uri);
+
+console.log('Is file:', stat.type === FileType.File);
+console.log('Is directory:', stat.type === FileType.Directory);
+console.log('Is symlink:', stat.type === FileType.SymbolicLink);
+console.log('Size:', stat.size);
+console.log('Modified:', new Date(stat.mtime));
+console.log('Created:', new Date(stat.ctime));
+console.log('Readonly:', stat.readonly);
+console.log('Locked:', stat.locked);
+```
+
+### resolve() - List Directory Contents
+
+```typescript
+import { IFileStat, IResolveFileOptions } from 'vs/platform/files/common/files';
+
+// Simple resolve
+const folder: IFileStat = await fileService.resolve(folderUri);
+
+if (folder.children) {
+  for (const child of folder.children) {
+    console.log(child.name, child.isFile ? 'FILE' : 'DIR');
+  }
+}
+
+// Resolve with options
+const deepResolve = await fileService.resolve(folderUri, {
+  resolveTo: [subfolderUri],              // Resolve these paths deeply
+  resolveSingleChildDescendants: true,    // Auto-expand single-child folders
+  resolveMetadata: true                   // Include size, mtime, etc.
+});
+
+// Resolve multiple files
+const results = await fileService.resolveAll([
+  { resource: uri1, options: { resolveMetadata: true } },
+  { resource: uri2, options: { resolveMetadata: true } }
+]);
+
+for (const result of results) {
+  if (result.success && result.stat) {
+    console.log('Resolved:', result.stat.name);
+  }
+}
+```
+
+### realpath() - Resolve Symlinks
+
+```typescript
+// Resolve symlink to actual path
+const realUri = await fileService.realpath(symlinkUri);
+if (realUri) {
+  console.log('Real path:', realUri.fsPath);
+}
+```
+
+## File Watching
+
+### watch() - Watch for File Changes
+
+```typescript
+import { IFileChange, FileChangeType } from 'vs/platform/files/common/files';
+
+// Watch a folder recursively
+const disposable = fileService.watch(folderUri, {
+  recursive: true,
+  excludes: ['**/node_modules/**', '**/.git/**'],
+  includes: ['**/*.ts', '**/*.js']
+});
+
+// Listen to all file changes
+fileService.onDidFilesChange(event => {
+  if (event.affects(myFileUri)) {
+    console.log('My file changed!');
+  }
+
+  if (event.contains(myFileUri, FileChangeType.DELETED)) {
+    console.log('My file was deleted!');
+  }
+
+  // Check specific change types
+  if (event.gotAdded()) {
+    console.log('Files were added');
+  }
+  if (event.gotUpdated()) {
+    console.log('Files were updated');
+  }
+  if (event.gotDeleted()) {
+    console.log('Files were deleted');
+  }
+});
+
+// Stop watching
+disposable.dispose();
+```
+
+### createWatcher() - Correlated File Watching
+
+```typescript
+import { IFileSystemWatcher } from 'vs/platform/files/common/files';
+
+// Create correlated watcher (non-recursive only)
+const watcher: IFileSystemWatcher = fileService.createWatcher(
+  folderUri,
+  { recursive: false }
+);
+
+// Listen only to this watcher's events
+watcher.onDidChange(event => {
+  // Only changes from this watcher
+  console.log('Watched folder changed:', event);
+});
+
+// Dispose watcher
+watcher.dispose();
+```
+
+<Info>
+  Correlated watchers are more efficient as events are only delivered to listeners of that specific watcher, not broadcast to all file change listeners.
+</Info>
+
+## File System Providers
+
+### Registering a Provider
+
+```typescript
+import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange } from 'vs/platform/files/common/files';
+import { Event, Emitter } from 'vs/base/common/event';
+
+class MyFileSystemProvider implements IFileSystemProvider {
+  readonly capabilities = 
+    FileSystemProviderCapabilities.FileReadWrite |
+    FileSystemProviderCapabilities.PathCaseSensitive;
+
+  private readonly _onDidChangeFile = new Emitter<readonly IFileChange[]>();
+  readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
+
+  private readonly _onDidChangeCapabilities = new Emitter<void>();
+  readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event;
+
+  watch(resource: URI, opts: IWatchOptions): IDisposable {
+    // Implement watching
+    return { dispose: () => {} };
+  }
+
+  async stat(resource: URI): Promise<IStat> {
+    // Return file stats
+    return {
+      type: FileType.File,
+      mtime: Date.now(),
+      ctime: Date.now(),
+      size: 1024
+    };
+  }
+
+  async readFile(resource: URI): Promise<Uint8Array> {
+    // Return file content
+    return new Uint8Array();
+  }
+
+  async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
+    // Write file content
+  }
+
+  // Implement other methods...
+}
+
+// Register provider
+const disposable = fileService.registerProvider('myscheme', new MyFileSystemProvider());
+
+// Now files with myscheme:// can be accessed
+const content = await fileService.readFile(URI.parse('myscheme://path/to/file'));
+```
+
+### Provider Capabilities
+
+```typescript
+// Check if provider supports features
+const canWrite = fileService.hasCapability(
+  uri,
+  FileSystemProviderCapabilities.FileReadWrite
+);
+
+const canUseTrash = fileService.hasCapability(
+  uri,
+  FileSystemProviderCapabilities.Trash
+);
+
+const isReadonly = fileService.hasCapability(
+  uri,
+  FileSystemProviderCapabilities.Readonly
+);
+
+// List all providers
+for (const { scheme, capabilities } of fileService.listCapabilities()) {
+  console.log(`${scheme}: ${capabilities}`);
+}
+```
+
+## Events
+
+### onDidFilesChange
+
+```typescript
+import { FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+
+fileService.onDidFilesChange((event: FileChangesEvent) => {
+  // Check if specific file changed
+  if (event.contains(myFileUri, FileChangeType.UPDATED)) {
+    console.log('File was updated');
+  }
+
+  // Check if file or any child changed
+  if (event.affects(folderUri)) {
+    console.log('Folder or its contents changed');
+  }
+
+  // Get raw changes (deprecated - use contains/affects instead)
+  console.log('Added:', event.rawAdded);
+  console.log('Updated:', event.rawUpdated);
+  console.log('Deleted:', event.rawDeleted);
+});
+```
+
+### onDidRunOperation
+
+```typescript
+import { FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
+
+fileService.onDidRunOperation((event: FileOperationEvent) => {
+  if (event.isOperation(FileOperation.CREATE)) {
+    console.log('File created:', event.resource.fsPath);
+    console.log('New file stat:', event.target);
+  }
+
+  if (event.isOperation(FileOperation.DELETE)) {
+    console.log('File deleted:', event.resource.fsPath);
+  }
+
+  if (event.isOperation(FileOperation.MOVE)) {
+    console.log('File moved:', event.resource.fsPath);
+    console.log('New location:', event.target?.resource.fsPath);
+  }
+
+  if (event.isOperation(FileOperation.COPY)) {
+    console.log('File copied to:', event.target?.resource.fsPath);
+  }
+
+  if (event.isOperation(FileOperation.WRITE)) {
+    console.log('File written:', event.resource.fsPath);
+  }
+});
+```
+
+## Error Handling
+
+```typescript
+import {
+  FileOperationError,
+  FileOperationResult,
+  FileSystemProviderErrorCode,
+  toFileSystemProviderErrorCode
+} from 'vs/platform/files/common/files';
+
+try {
+  await fileService.readFile(uri);
+} catch (error) {
+  if (error instanceof FileOperationError) {
+    switch (error.fileOperationResult) {
+      case FileOperationResult.FILE_NOT_FOUND:
+        console.log('File not found');
+        break;
+      case FileOperationResult.FILE_IS_DIRECTORY:
+        console.log('Expected file, got directory');
+        break;
+      case FileOperationResult.FILE_TOO_LARGE:
+        console.log('File exceeds size limit');
+        break;
+      case FileOperationResult.FILE_PERMISSION_DENIED:
+        console.log('Permission denied');
+        break;
+    }
+  }
+
+  const code = toFileSystemProviderErrorCode(error);
+  if (code === FileSystemProviderErrorCode.FileNotFound) {
+    // Handle missing file
+  }
+}
+```
+
+## Common Use Cases
+
+### Reading Configuration Files
+
+```typescript
+export class ConfigLoader {
+  constructor(
+    @IFileService private fileService: IFileService
+  ) {}
+
+  async loadConfig(workspaceUri: URI): Promise<any> {
+    const configUri = URI.joinPath(workspaceUri, '.vscode', 'settings.json');
+
+    try {
+      const exists = await this.fileService.exists(configUri);
+      if (!exists) {
+        return {};
+      }
+
+      const content = await this.fileService.readFile(configUri);
+      return JSON.parse(content.value.toString());
+    } catch (error) {
+      console.error('Failed to load config:', error);
+      return {};
+    }
+  }
+
+  async saveConfig(workspaceUri: URI, config: any): Promise<void> {
+    const configUri = URI.joinPath(workspaceUri, '.vscode', 'settings.json');
+    const content = VSBuffer.fromString(JSON.stringify(config, null, 2));
+
+    const vscodeFolderUri = URI.joinPath(workspaceUri, '.vscode');
+    const folderExists = await this.fileService.exists(vscodeFolderUri);
+    
+    if (!folderExists) {
+      await this.fileService.createFolder(vscodeFolderUri);
+    }
+
+    await this.fileService.writeFile(configUri, content);
+  }
+}
+```
+
+### Watching Project Files
+
+```typescript
+export class ProjectWatcher {
+  private disposables: IDisposable[] = [];
+
+  constructor(
+    @IFileService private fileService: IFileService
+  ) {}
+
+  watchProject(projectUri: URI): void {
+    // Watch source files
+    const watcher = this.fileService.watch(projectUri, {
+      recursive: true,
+      excludes: ['**/node_modules/**', '**/dist/**', '**/.git/**'],
+      includes: ['**/*.ts', '**/*.js', '**/*.json']
+    });
+    this.disposables.push(watcher);
+
+    // Listen to changes
+    const listener = this.fileService.onDidFilesChange(event => {
+      if (event.affects(projectUri)) {
+        this.handleProjectChange(event);
+      }
+    });
+    this.disposables.push(listener);
+  }
+
+  private handleProjectChange(event: FileChangesEvent): void {
+    if (event.gotAdded()) {
+      console.log('New files added to project');
+    }
+    if (event.gotDeleted()) {
+      console.log('Files deleted from project');
+    }
+    if (event.gotUpdated()) {
+      console.log('Files updated in project');
+    }
+  }
+
+  dispose(): void {
+    this.disposables.forEach(d => d.dispose());
+    this.disposables = [];
+  }
+}
+```
+
+## Best Practices
+
+<Note>
+  **Stream Large Files**: Use `readFileStream()` instead of `readFile()` for files larger than a few megabytes to avoid memory issues.
+</Note>
+
+<Note>
+  **Atomic Operations**: Use atomic writes for critical files to prevent corruption if the operation is interrupted.
+</Note>
+
+<Note>
+  **Watch Carefully**: Be specific with watch patterns and excludes to avoid performance issues from watching too many files.
+</Note>
+
+<Note>
+  **Check Capabilities**: Always check provider capabilities before attempting operations like trash or atomic writes.
+</Note>
+
+<Note>
+  **Error Handling**: Always handle file operation errors gracefully - files may not exist, be locked, or lack permissions.
+</Note>
+
+## Related Services
+
+- **ITextFileService** - Higher-level service for text files with encoding support
+- **IWorkspaceContextService** - Provides workspace folder context
+- **IEnvironmentService** - Provides standard file paths
+
+## See Also
+
+- [File System Provider API](/api/providers/file-system-provider)
+- [Text File Service](/api/services/text-file-service)
+- [URI Utilities](/api/utils/uri)

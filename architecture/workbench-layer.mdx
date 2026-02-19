@@ -1,0 +1,631 @@
+---
+title: Workbench Layer
+description: Main application workbench UI and feature contributions in VS Code
+---
+
+## Overview
+
+The Workbench Layer (`src/vs/workbench/`) implements the complete VS Code application UI. It orchestrates the editor, panels, sidebars, and all user-facing features into a cohesive IDE experience.
+
+## Directory Structure
+
+```
+src/vs/workbench/
+├── browser/              # Core workbench UI
+│   ├── parts/            # UI parts (editor, sidebar, panel, etc.)
+│   │   ├── editor/        # Editor area with tab management
+│   │   ├── sidebar/       # Primary sidebar
+│   │   ├── panel/         # Bottom panel
+│   │   ├── auxiliarybar/  # Secondary sidebar
+│   │   ├── statusbar/     # Status bar
+│   │   ├── titlebar/      # Title bar
+│   │   └── activitybar/   # Activity bar
+│   ├── layout.ts         # Layout management
+│   └── workbench.ts      # Main workbench class
+├── services/            # Workbench services (94+ services)
+│   ├── editor/           # Editor management
+│   ├── viewlet/          # Viewlet service
+│   ├── panel/            # Panel service
+│   ├── search/           # Search service
+│   └── ...
+├── contrib/             # Feature contributions (94+ features)
+│   ├── debug/            # Debug functionality
+│   ├── files/            # File explorer
+│   ├── search/           # Search functionality
+│   ├── scm/              # Source control
+│   ├── terminal/         # Integrated terminal
+│   ├── extensions/       # Extension management
+│   └── ...
+├── api/                 # Extension host and VS Code API
+│   ├── browser/          # Main thread API implementation
+│   └── common/           # Extension host
+├── common/              # Workbench common code
+└── electron-browser/    # Electron-specific workbench code
+```
+
+## Workbench Parts
+
+The workbench is divided into physical UI parts:
+
+<Accordion title="Layout Structure">
+```
+┌───────────────────────────────────────────────────────┐
+│                     TITLEBAR (Part.TITLEBAR)                  │
+├───────┬───────────────────────────────────────┬───────┤
+│ ACTIV │                                        │  AUX  │
+│  ITY  │                                        │ ILIAR│
+│  BAR  │           EDITOR AREA                │   Y   │
+│       │        (Part.EDITOR)                │  BAR  │
+│       ├────────────────────────────────────────┤       │
+│       │                                        │       │
+│       │           PANEL AREA                 │       │
+│       │        (Part.PANEL)                 │       │
+├───────┴───────────────────────────────────────┴───────┤
+│                  STATUSBAR (Part.STATUSBAR)                 │
+└───────────────────────────────────────────────────────┘
+
+┌──────────────────────┐
+│      SIDEBAR      │  SIDEBAR can be on left or right
+│  (Part.SIDEBAR)   │  Contains viewlets (Explorer, Search, etc.)
+│                    │
+└──────────────────────┘
+```
+</Accordion>
+
+### Workbench Main Class
+
+Located in: `src/vs/workbench/browser/workbench.ts`
+
+```typescript
+import { Workbench } from 'vs/workbench/browser/workbench';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+
+export class Workbench extends Layout {
+	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
+	readonly onWillShutdown = this._onWillShutdown.event;
+
+	private readonly _onDidShutdown = this._register(new Emitter<void>());
+	readonly onDidShutdown = this._onDidShutdown.event;
+
+	constructor(
+		parent: HTMLElement,
+		options: IWorkbenchOptions | undefined,
+		serviceCollection: ServiceCollection,
+		logService: ILogService
+	) {
+		super(parent, { resetLayout: Boolean(options?.resetLayout) });
+		this.registerErrorHandler(logService);
+	}
+
+	async startup(): Promise<void> {
+		// Initialize services
+		// Restore workbench state
+		// Render UI parts
+		// Load contributions
+	}
+}
+```
+
+## Layout Service
+
+<Accordion title="IWorkbenchLayoutService - Layout Management">
+Located in: `src/vs/workbench/services/layout/browser/layoutService.ts`
+
+```typescript
+import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
+
+export class MyComponent {
+	constructor(
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	) { }
+
+	toggleSidebar(): void {
+		const visible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
+		this.layoutService.setPartHidden(!visible, Parts.SIDEBAR_PART);
+	}
+
+	movePanelToSide(): void {
+		// Move panel to left, right, or bottom
+		this.layoutService.setPanelPosition(Position.RIGHT);
+	}
+
+	getContainerDimensions(): void {
+		const dimension = this.layoutService.getContainer(Parts.EDITOR_PART);
+		console.log('Editor area:', dimension.width, 'x', dimension.height);
+	}
+
+	focusPart(part: Parts): void {
+		this.layoutService.focusPart(part);
+	}
+}
+```
+
+Available parts:
+- `Parts.TITLEBAR_PART` - Title bar
+- `Parts.ACTIVITYBAR_PART` - Activity bar
+- `Parts.SIDEBAR_PART` - Primary sidebar
+- `Parts.EDITOR_PART` - Editor area
+- `Parts.PANEL_PART` - Bottom/side panel
+- `Parts.AUXILIARYBAR_PART` - Secondary sidebar
+- `Parts.STATUSBAR_PART` - Status bar
+</Accordion>
+
+## Editor Management
+
+<Accordion title="IEditorGroupsService - Multi-Editor Management">
+Located in: `src/vs/workbench/services/editor/common/editorGroupsService.ts`
+
+```typescript
+import { IEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+
+export class EditorManager {
+	constructor(
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IEditorService private readonly editorService: IEditorService
+	) { }
+
+	splitEditor(): void {
+		// Split active editor to the right
+		const group = this.editorGroupsService.activeGroup;
+		this.editorGroupsService.addGroup(group, GroupDirection.RIGHT);
+	}
+
+	closeAllEditors(): void {
+		// Close all editors in all groups
+		for (const group of this.editorGroupsService.groups) {
+			group.closeAllEditors();
+		}
+	}
+
+	getOpenEditors(): void {
+		for (const group of this.editorGroupsService.groups) {
+			for (const editor of group.editors) {
+				console.log('Open editor:', editor.resource?.fsPath);
+			}
+		}
+	}
+
+	async openEditor(resource: URI): Promise<void> {
+		await this.editorService.openEditor({
+			resource,
+			options: {
+				pinned: true,
+				revealIfOpened: true
+			}
+		});
+	}
+}
+```
+</Accordion>
+
+<Accordion title="EditorPart - Editor Area Implementation">
+Located in: `src/vs/workbench/browser/parts/editor/editorPart.ts`
+
+```typescript
+import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
+import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+
+// EditorPart manages the grid of editor groups
+export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	readonly onDidFocus = this._onDidFocus.event;
+
+	private readonly _onDidActiveGroupChange = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidActiveGroupChange = this._onDidActiveGroupChange.event;
+
+	// Editor groups organized in a grid
+	private gridWidget: SerializableGrid<IEditorGroupView>;
+
+	// Methods for group management
+	addGroup(location: IEditorGroupView, direction: GroupDirection): IEditorGroupView;
+	removeGroup(group: IEditorGroupView): void;
+	moveGroup(group: IEditorGroupView, location: IEditorGroupView, direction: GroupDirection): void;
+	mergeGroup(group: IEditorGroupView, target: IEditorGroupView): void;
+}
+```
+</Accordion>
+
+## Contribution Model
+
+The workbench uses a contribution-based architecture where features register themselves:
+
+<Accordion title="Workbench Contributions">
+Located in: `src/vs/workbench/common/contributions.ts`
+
+```typescript
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+
+// Define a contribution
+class MyWorkbenchContribution {
+	constructor(
+		@IFileService private readonly fileService: IFileService,
+		@INotificationService private readonly notificationService: INotificationService
+	) {
+		// Initialize when workbench is ready
+		this.initialize();
+	}
+
+	private async initialize(): Promise<void> {
+		// Contribution logic
+		this.notificationService.info('My feature initialized!');
+	}
+}
+
+// Register the contribution
+const registry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+registry.registerWorkbenchContribution(MyWorkbenchContribution, LifecyclePhase.Ready);
+```
+
+Lifecycle phases:
+- `LifecyclePhase.Starting` - Very early, before window opens
+- `LifecyclePhase.Ready` - Window is ready, services available
+- `LifecyclePhase.Restored` - Workbench state restored
+- `LifecyclePhase.Eventually` - After everything else
+</Accordion>
+
+### Viewlets and Views
+
+<Accordion title="Viewlet Contributions - Sidebar Panels">
+```typescript
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+
+// Define a custom viewlet
+class MyViewlet extends Viewlet {
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService
+	) {
+		super('my.viewlet', telemetryService, /* ... */);
+	}
+
+	protected createViewPaneContainer(parent: HTMLElement): ViewPaneContainer {
+		// Create your viewlet content
+		return this.instantiationService.createInstance(MyViewPaneContainer, /* ... */);
+	}
+}
+
+// Register the viewlet
+const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
+viewletRegistry.registerViewlet(new ViewletDescriptor(
+	MyViewlet,
+	'my.viewlet',
+	'My Viewlet',
+	'myViewlet',
+	1 // Order
+));
+```
+</Accordion>
+
+<Accordion title="Views - Panels Within Viewlets">
+```typescript
+import { IViewDescriptorService, IViewsRegistry, Extensions as ViewExtensions } from 'vs/workbench/common/views';
+
+// Register a view
+const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+
+viewsRegistry.registerViews([
+	{
+		id: 'myView',
+		name: 'My View',
+		containerIcon: Codicon.code,
+		ctorDescriptor: new SyncDescriptor(MyTreeView),
+		canToggleVisibility: true,
+		canMoveView: true,
+		weight: 100
+	}
+], MY_VIEW_CONTAINER);
+
+// Implement the view
+class MyTreeView extends ViewPane {
+	private tree: WorkbenchObjectTree<ITreeNode>;
+
+	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
+		// Create tree widget
+		this.tree = this.instantiationService.createInstance(
+			WorkbenchObjectTree,
+			container,
+			delegate,
+			renderers,
+			options
+		);
+
+		// Set initial data
+		this.updateTreeData();
+	}
+
+	private updateTreeData(): void {
+		const nodes = this.getNodes();
+		this.tree.setChildren(null, nodes);
+	}
+}
+```
+</Accordion>
+
+## Feature Contributions
+
+The `contrib/` directory contains major features:
+
+<Tabs>
+  <Tab title="Files">
+    Located in: `src/vs/workbench/contrib/files/`
+    
+    File explorer, file operations, and file management.
+    
+    ```typescript
+    import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
+
+    export class FileOperations {
+        constructor(
+            @IExplorerService private readonly explorerService: IExplorerService,
+            @IFileService private readonly fileService: IFileService
+        ) { }
+
+        async revealInExplorer(resource: URI): Promise<void> {
+            await this.explorerService.select(resource, true);
+        }
+    }
+    ```
+  </Tab>
+  <Tab title="Search">
+    Located in: `src/vs/workbench/contrib/search/`
+    
+    Full-text search across workspace.
+    
+    ```typescript
+    import { ISearchService, ITextQuery } from 'vs/workbench/services/search/common/search';
+
+    export class SearchOperations {
+        constructor(
+            @ISearchService private readonly searchService: ISearchService
+        ) { }
+
+        async searchWorkspace(pattern: string): Promise<void> {
+            const query: ITextQuery = {
+                type: QueryType.Text,
+                contentPattern: { pattern },
+                folderQueries
+            };
+
+            const result = await this.searchService.textSearch(query);
+            for (const match of result.results) {
+                console.log('Found in:', match.resource.fsPath);
+            }
+        }
+    }
+    ```
+  </Tab>
+  <Tab title="Terminal">
+    Located in: `src/vs/workbench/contrib/terminal/`
+    
+    Integrated terminal functionality.
+    
+    ```typescript
+    import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+
+    export class TerminalOperations {
+        constructor(
+            @ITerminalService private readonly terminalService: ITerminalService
+        ) { }
+
+        createTerminal(): void {
+            const terminal = this.terminalService.createTerminal({
+                name: 'My Terminal',
+                cwd: '/path/to/workspace'
+            });
+            terminal.show();
+            terminal.sendText('echo Hello, World!');
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Accordion title="Debug Contribution">
+Located in: `src/vs/workbench/contrib/debug/`
+
+```typescript
+import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+
+export class DebugOperations {
+	constructor(
+		@IDebugService private readonly debugService: IDebugService
+	) { }
+
+	async startDebugging(): Promise<void> {
+		await this.debugService.startDebugging(undefined, {
+			type: 'node',
+			request: 'launch',
+			name: 'Launch Program',
+			program: '${workspaceFolder}/index.js'
+		});
+	}
+
+	getActiveSession(): void {
+		const session = this.debugService.getViewModel().focusedSession;
+		if (session) {
+			console.log('Active session:', session.name);
+		}
+	}
+
+	addBreakpoint(uri: URI, lineNumber: number): void {
+		this.debugService.addBreakpoints(uri, [{ lineNumber }]);
+	}
+}
+```
+</Accordion>
+
+<Accordion title="SCM (Source Control) Contribution">
+Located in: `src/vs/workbench/contrib/scm/`
+
+```typescript
+import { ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
+
+export class SCMOperations {
+	constructor(
+		@ISCMService private readonly scmService: ISCMService
+	) { }
+
+	getRepositories(): ISCMRepository[] {
+		return this.scmService.repositories;
+	}
+
+	async commit(repository: ISCMRepository, message: string): Promise<void> {
+		const input = repository.input;
+		input.value = message;
+		await repository.provider.commit(message);
+	}
+
+	getChanges(repository: ISCMRepository): void {
+		for (const group of repository.provider.groups) {
+			for (const resource of group.resources) {
+				console.log('Changed file:', resource.sourceUri.fsPath);
+			}
+		}
+	}
+}
+```
+</Accordion>
+
+## Extension API Implementation
+
+The `api/` directory implements the VS Code Extension API:
+
+<Accordion title="Main Thread vs Extension Host">
+```
+┌─────────────────────────────┐
+│  Main Thread (Workbench)  │
+│  src/vs/workbench/api/    │
+│  browser/                 │
+│                           │
+│  - MainThreadEditors      │
+│  - MainThreadCommands     │
+│  - MainThreadLanguages    │
+│  - MainThreadWorkspace    │
+└────────────┬────────────────┘
+             │ IPC
+             │
+┌────────────┴────────────────┐
+│   Extension Host Process   │
+│   src/vs/workbench/api/    │
+│   common/                  │
+│                            │
+│   - ExtHostEditors         │
+│   - ExtHostCommands        │
+│   - ExtHostLanguages       │
+│   - ExtHostWorkspace       │
+│                            │
+│   Extensions run here      │
+└────────────────────────────┘
+```
+
+Extensions run in a separate process and communicate with the main thread via IPC.
+</Accordion>
+
+## Commands and Actions
+
+<Accordion title="Command Registration">
+```typescript
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+
+// Register a command
+CommandsRegistry.registerCommand({
+	id: 'myExtension.doSomething',
+	handler: async (accessor: ServicesAccessor, ...args: any[]) => {
+		// Get services
+		const fileService = accessor.get(IFileService);
+		const notificationService = accessor.get(INotificationService);
+
+		// Execute command logic
+		await fileService.resolve(URI.file('/path'));
+		notificationService.info('Command executed!');
+	}
+});
+```
+</Accordion>
+
+<Accordion title="Menu Contributions">
+```typescript
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+
+// Add item to editor context menu
+MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+	command: {
+		id: 'myExtension.doSomething',
+		title: 'Do Something'
+	},
+	group: 'navigation',
+	when: ContextKeyExpr.equals('resourceExtname', '.js'),
+	order: 1
+});
+```
+</Accordion>
+
+## Lifecycle Management
+
+```typescript
+import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
+
+export class LifecycleAwareComponent extends Disposable {
+	constructor(
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
+	) {
+		super();
+
+		// Listen for shutdown
+		this._register(this.lifecycleService.onWillShutdown(e => {
+			this.handleShutdown(e);
+		}));
+
+		// Listen for phase changes
+		this._register(this.lifecycleService.onDidChangePhase(phase => {
+			console.log('Lifecycle phase:', phase);
+		}));
+	}
+
+	private handleShutdown(event: WillShutdownEvent): void {
+		// Save state before shutdown
+		event.join(
+			this.saveState(),
+			{ id: 'myComponent.saveState', label: 'Saving state' }
+		);
+	}
+
+	private async saveState(): Promise<void> {
+		// Async save logic
+	}
+}
+```
+
+## Key Takeaways
+
+<Note>
+- The workbench orchestrates all UI parts (editor, sidebar, panel, etc.)
+- Features register as contributions and are loaded at specific lifecycle phases
+- Editor management supports multiple editor groups in a grid layout
+- Views and viewlets provide extensible UI containers
+- The Extension API bridges the main thread and extension host process
+- Commands and menus are registered in central registries
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Electron Main Process" icon="bolt" href="/architecture/electron-main-process">
+    Learn about the Electron main process
+  </Card>
+  <Card title="Editor Layer" icon="code" href="/architecture/editor-layer">
+    Review the editor implementation
+  </Card>
+</CardGroup>
