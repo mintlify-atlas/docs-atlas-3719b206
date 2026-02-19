@@ -1,0 +1,181 @@
+{
+  "projectType": "frontend",
+  "projectName": "Visual Studio Code",
+  "projectDescription": "A modern, extensible code editor built with TypeScript and Electron that combines simplicity with powerful developer tools.",
+  "theme": "aspen",
+  "primaryColor": "#007ACC",
+  "lightColor": "#2D9EE7",
+  "darkColor": "#005A9E",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/layered-architecture",
+              "concepts/dependency-injection",
+              "concepts/contribution-model",
+              "concepts/extension-system"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/building-from-source",
+              "development/development-workflow",
+              "development/debugging",
+              "development/running-tests"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/base-layer",
+              "architecture/platform-layer",
+              "architecture/editor-layer",
+              "architecture/workbench-layer",
+              "architecture/electron-main-process"
+            ]
+          },
+          {
+            "group": "Extensions",
+            "pages": [
+              "extensions/overview",
+              "extensions/built-in-extensions",
+              "extensions/extension-api",
+              "extensions/creating-extensions",
+              "extensions/language-features"
+            ]
+          },
+          {
+            "group": "Workbench",
+            "pages": [
+              "workbench/overview",
+              "workbench/services",
+              "workbench/contributions",
+              "workbench/views-and-panels"
+            ]
+          },
+          {
+            "group": "Contributing",
+            "pages": [
+              "contributing/how-to-contribute",
+              "contributing/coding-guidelines",
+              "contributing/pull-requests",
+              "contributing/issue-triaging"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Extension API",
+            "pages": [
+              "api/vscode-api-overview",
+              "api/commands",
+              "api/text-editor",
+              "api/workspace",
+              "api/languages",
+              "api/debugging",
+              "api/authentication",
+              "api/webview"
+            ]
+          },
+          {
+            "group": "Core Services",
+            "pages": [
+              "api/services/configuration-service",
+              "api/services/file-service",
+              "api/services/editor-service",
+              "api/services/telemetry-service",
+              "api/services/lifecycle-service"
+            ]
+          },
+          {
+            "group": "Platform APIs",
+            "pages": [
+              "api/platform/registry",
+              "api/platform/instantiation",
+              "api/platform/actions",
+              "api/platform/keybindings"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI Tool",
+        "groups": [
+          {
+            "group": "CLI Reference",
+            "pages": [
+              "cli/overview",
+              "cli/installation",
+              "cli/commands",
+              "cli/tunnel",
+              "cli/configuration"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Intelligent code editing with IntelliSense",
+    "Integrated debugging with breakpoints and call stacks",
+    "Built-in Git integration and source control",
+    "Extensible architecture with rich extension marketplace",
+    "Multi-language support with syntax highlighting",
+    "Integrated terminal and task running",
+    "Customizable themes and keybindings",
+    "Remote development capabilities",
+    "Live Share collaboration",
+    "AI-powered features with GitHub Copilot integration"
+  ],
+  "publicApiSurface": [
+    "vscode.commands",
+    "vscode.window",
+    "vscode.workspace",
+    "vscode.languages",
+    "vscode.extensions",
+    "vscode.debug",
+    "vscode.authentication",
+    "vscode.env",
+    "vscode.TextDocument",
+    "vscode.TextEditor",
+    "vscode.Position",
+    "vscode.Range",
+    "vscode.Selection",
+    "vscode.Uri",
+    "vscode.FileSystemProvider",
+    "vscode.TreeDataProvider",
+    "vscode.CodeActionProvider",
+    "vscode.CompletionItemProvider",
+    "vscode.DefinitionProvider",
+    "vscode.HoverProvider",
+    "vscode.ReferenceProvider",
+    "vscode.RenameProvider",
+    "vscode.DocumentFormattingEditProvider",
+    "vscode.DiagnosticCollection",
+    "vscode.DebugAdapterDescriptorFactory",
+    "vscode.WebviewPanel",
+    "vscode.CustomTextEditorProvider",
+    "vscode.NotebookSerializer",
+    "vscode.NotebookController",
+    "vscode.ChatParticipant",
+    "vscode.LanguageModelTool"
+  ]
+}
